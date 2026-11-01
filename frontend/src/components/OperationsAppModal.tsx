@@ -13,11 +13,13 @@ import {
   CreditCard,
   ShieldCheck,
   Sparkles,
+  Terminal,
+  Copy,
 } from 'lucide-react';
 import { Modal, Button } from './ui';
 import { useInstallPrompt } from '../hooks/useInstallPrompt';
 import { useAuth } from '../store/auth';
-import { downloadDesktopShortcut, downloadWindowsAppLauncher } from '../lib/installShortcuts';
+import { downloadDesktopShortcut, downloadWindowsAppLauncher, downloadWindowsExe, getTerminalInstallCommand } from '../lib/installShortcuts';
 
 export interface OperationsAppModalProps {
   open: boolean;
@@ -81,6 +83,15 @@ export function OperationsAppModal({ open, onClose, slug, qrDataUrl }: Operation
   const { user } = useAuth();
   const { canInstall, promptInstall, installed, needsManualInstall } = useInstallPrompt();
   const [platform, setPlatform] = useState<'computer' | 'mobile'>('computer');
+  const [copiedCmd, setCopiedCmd] = useState(false);
+
+  function copyInstallCommand() {
+    const cmd = getTerminalInstallCommand();
+    navigator.clipboard.writeText(cmd).then(() => {
+      setCopiedCmd(true);
+      setTimeout(() => setCopiedCmd(false), 2500);
+    });
+  }
 
   function openSystem(path: string) {
     window.open(path, '_blank');
@@ -188,20 +199,28 @@ export function OperationsAppModal({ open, onClose, slug, qrDataUrl }: Operation
                 {platform === 'computer' && (
                   <>
                     <Button
+                      variant="primary"
+                      size="sm"
+                      icon={<Download size={14} />}
+                      onClick={() => downloadWindowsExe()}
+                    >
+                      Download Windows App (.exe)
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      icon={copiedCmd ? <Check size={14} className="text-leaf-600" /> : <Terminal size={14} />}
+                      onClick={copyInstallCommand}
+                    >
+                      {copiedCmd ? 'Command Copied!' : 'Copy Terminal Install Command'}
+                    </Button>
+                    <Button
                       variant="secondary"
                       size="sm"
                       icon={<Laptop size={14} />}
                       onClick={() => downloadWindowsAppLauncher('Sizzle-Operations-OS', '/staff.html')}
                     >
-                      Download Desktop Launcher (.bat)
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      icon={<ExternalLink size={13} />}
-                      onClick={() => downloadDesktopShortcut('Sizzle Operations OS', '/staff.html')}
-                    >
-                      Download Desktop Shortcut (.url)
+                      Desktop Launcher (.bat)
                     </Button>
                   </>
                 )}

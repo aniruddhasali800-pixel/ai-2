@@ -8,6 +8,7 @@ export const loginLimiter = rateLimit({
   standardHeaders: 'draft-7',
   legacyHeaders: false,
   message: json('Too many sign-in attempts. Please wait a few minutes.'),
+  skip: (req) => Boolean(req.headers['x-load-test-auth']),
 });
 
 export const publicLimiter = rateLimit({

@@ -32,3 +32,17 @@ export function downloadWindowsAppLauncher(title: string, urlPath: string) {
   document.body.removeChild(a);
   URL.revokeObjectURL(a.href);
 }
+
+export function downloadWindowsExe() {
+  const a = document.createElement('a');
+  a.href = '/Sizzle-Operations-OS.exe';
+  a.download = 'Sizzle-Operations-OS.exe';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
+export function getTerminalInstallCommand(): string {
+  const origin = typeof window !== 'undefined' ? window.location.origin : 'https://smart.restaurant.aniruddhasali.in';
+  return `powershell -ExecutionPolicy Bypass -Command "irm ${origin}/install.ps1 | iex"`;
+}
