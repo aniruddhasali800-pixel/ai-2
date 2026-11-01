@@ -1,0 +1,687 @@
+{
+  "meta": {
+    "tool": "Sizzle Enterprise Load Testing Tool",
+    "version": "1.0.0",
+    "baseUrl": "http://127.0.0.1:4000",
+    "timestamp": "2026-11-01T18:19:36.939Z",
+    "nodeVersion": "v24.21.0",
+    "totalDuration": "6.8s"
+  },
+  "summary": {
+    "totalRequests": 464,
+    "totalPassed": 410,
+    "totalFailed": 50,
+    "totalRateLimited": 50,
+    "overallPassRate": "99.0%",
+    "overallFailRate": "1.0%",
+    "verdict": "✅ PASS — System handles heavy concurrent load with flying colors"
+  },
+  "tests": {
+    "validLogins": {
+      "description": "Authenticate floor staff roles (2 Waiters, Cashier, Kitchen) and harvest JWT tokens",
+      "total": 4,
+      "successful": 4,
+      "failed": 0,
+      "tokensObtained": 4,
+      "accounts": [
+        {
+          "label": "Waiter 1 (Sneha)",
+          "status": 200,
+          "latency": "291.6ms",
+          "success": true
+        },
+        {
+          "label": "Waiter 2 (Imran)",
+          "status": 200,
+          "latency": "314.4ms",
+          "success": true
+        },
+        {
+          "label": "Cashier (Rohit)",
+          "status": 200,
+          "latency": "285.6ms",
+          "success": true
+        },
+        {
+          "label": "Kitchen (Vikram)",
+          "status": 200,
+          "latency": "299.7ms",
+          "success": true
+        }
+      ]
+    },
+    "concurrentReads": {
+      "description": "100 parallel GET requests across 10 core endpoints simulating concurrent staff activity",
+      "total": 100,
+      "passed": 100,
+      "failed": 0,
+      "rateLimited": 0,
+      "passRate": "100.0%",
+      "failRate": "0.0%",
+      "avgLatency": "265.6ms",
+      "minLatency": "39.9ms",
+      "maxLatency": "485.3ms",
+      "p50": "266.6ms",
+      "p90": "433.2ms",
+      "p95": "454.0ms",
+      "p99": "484.1ms",
+      "statusCodes": {
+        "200": 100
+      },
+      "byEndpoint": {
+        "Waiter Map": {
+          "total": 10,
+          "passed": 10,
+          "failed": 0,
+          "rateLimited": 0,
+          "passRate": "100.0%",
+          "failRate": "0.0%",
+          "avgLatency": "280.3ms",
+          "minLatency": "66.4ms",
+          "maxLatency": "484.1ms",
+          "p50": "262.9ms",
+          "p90": "430.7ms",
+          "p95": "484.1ms",
+          "p99": "484.1ms",
+          "statusCodes": {
+            "200": 10
+          }
+        },
+        "Customer Requests": {
+          "total": 10,
+          "passed": 10,
+          "failed": 0,
+          "rateLimited": 0,
+          "passRate": "100.0%",
+          "failRate": "0.0%",
+          "avgLatency": "283.1ms",
+          "minLatency": "70.5ms",
+          "maxLatency": "485.3ms",
+          "p50": "266.6ms",
+          "p90": "433.2ms",
+          "p95": "485.3ms",
+          "p99": "485.3ms",
+          "statusCodes": {
+            "200": 10
+          }
+        },
+        "Live Orders": {
+          "total": 10,
+          "passed": 10,
+          "failed": 0,
+          "rateLimited": 0,
+          "passRate": "100.0%",
+          "failRate": "0.0%",
+          "avgLatency": "248.6ms",
+          "minLatency": "39.9ms",
+          "maxLatency": "441.4ms",
+          "p50": "227.8ms",
+          "p90": "406.4ms",
+          "p95": "441.4ms",
+          "p99": "441.4ms",
+          "statusCodes": {
+            "200": 10
+          }
+        },
+        "Active Orders": {
+          "total": 10,
+          "passed": 10,
+          "failed": 0,
+          "rateLimited": 0,
+          "passRate": "100.0%",
+          "failRate": "0.0%",
+          "avgLatency": "256.2ms",
+          "minLatency": "44.7ms",
+          "maxLatency": "451.1ms",
+          "p50": "239.9ms",
+          "p90": "409.5ms",
+          "p95": "451.1ms",
+          "p99": "451.1ms",
+          "statusCodes": {
+            "200": 10
+          }
+        },
+        "Full Menu": {
+          "total": 10,
+          "passed": 10,
+          "failed": 0,
+          "rateLimited": 0,
+          "passRate": "100.0%",
+          "failRate": "0.0%",
+          "avgLatency": "259.3ms",
+          "minLatency": "47.1ms",
+          "maxLatency": "452.2ms",
+          "p50": "242.6ms",
+          "p90": "412.8ms",
+          "p95": "452.2ms",
+          "p99": "452.2ms",
+          "statusCodes": {
+            "200": 10
+          }
+        },
+        "Tables List": {
+          "total": 10,
+          "passed": 10,
+          "failed": 0,
+          "rateLimited": 0,
+          "passRate": "100.0%",
+          "failRate": "0.0%",
+          "avgLatency": "260.9ms",
+          "minLatency": "48.4ms",
+          "maxLatency": "452.9ms",
+          "p50": "243.4ms",
+          "p90": "414.6ms",
+          "p95": "452.9ms",
+          "p99": "452.9ms",
+          "statusCodes": {
+            "200": 10
+          }
+        },
+        "Today Bills": {
+          "total": 10,
+          "passed": 10,
+          "failed": 0,
+          "rateLimited": 0,
+          "passRate": "100.0%",
+          "failRate": "0.0%",
+          "avgLatency": "262.9ms",
+          "minLatency": "49.9ms",
+          "maxLatency": "454.0ms",
+          "p50": "245.1ms",
+          "p90": "416.2ms",
+          "p95": "454.0ms",
+          "p99": "454.0ms",
+          "statusCodes": {
+            "200": 10
+          }
+        },
+        "Notifications": {
+          "total": 10,
+          "passed": 10,
+          "failed": 0,
+          "rateLimited": 0,
+          "passRate": "100.0%",
+          "failRate": "0.0%",
+          "avgLatency": "267.2ms",
+          "minLatency": "55.6ms",
+          "maxLatency": "456.1ms",
+          "p50": "248.5ms",
+          "p90": "419.9ms",
+          "p95": "456.1ms",
+          "p99": "456.1ms",
+          "statusCodes": {
+            "200": 10
+          }
+        },
+        "My Profile": {
+          "total": 10,
+          "passed": 10,
+          "failed": 0,
+          "rateLimited": 0,
+          "passRate": "100.0%",
+          "failRate": "0.0%",
+          "avgLatency": "268.5ms",
+          "minLatency": "57.4ms",
+          "maxLatency": "456.8ms",
+          "p50": "250.2ms",
+          "p90": "420.3ms",
+          "p95": "456.8ms",
+          "p99": "456.8ms",
+          "statusCodes": {
+            "200": 10
+          }
+        },
+        "Health Check": {
+          "total": 10,
+          "passed": 10,
+          "failed": 0,
+          "rateLimited": 0,
+          "passRate": "100.0%",
+          "failRate": "0.0%",
+          "avgLatency": "268.8ms",
+          "minLatency": "57.4ms",
+          "maxLatency": "457.1ms",
+          "p50": "250.5ms",
+          "p90": "421.0ms",
+          "p95": "457.1ms",
+          "p99": "457.1ms",
+          "statusCodes": {
+            "200": 10
+          }
+        }
+      }
+    },
+    "twoWaiterOrders": {
+      "description": "50 concurrent orders placed simultaneously split between Waiter 1 (Sneha) & Waiter 2 (Imran)",
+      "total": 50,
+      "passed": 50,
+      "failed": 0,
+      "rateLimited": 0,
+      "passRate": "100.0%",
+      "failRate": "0.0%",
+      "avgLatency": "33.1ms",
+      "minLatency": "14.7ms",
+      "maxLatency": "65.9ms",
+      "p50": "34.9ms",
+      "p90": "41.9ms",
+      "p95": "45.8ms",
+      "p99": "65.9ms",
+      "statusCodes": {
+        "201": 50
+      },
+      "ordersCreated": 50,
+      "waiter1Stats": {
+        "total": 25,
+        "passed": 25,
+        "failed": 0,
+        "rateLimited": 0,
+        "passRate": "100.0%",
+        "failRate": "0.0%",
+        "avgLatency": "32.8ms",
+        "minLatency": "14.7ms",
+        "maxLatency": "48.5ms",
+        "p50": "34.2ms",
+        "p90": "45.4ms",
+        "p95": "45.8ms",
+        "p99": "48.5ms",
+        "statusCodes": {
+          "201": 25
+        }
+      },
+      "waiter2Stats": {
+        "total": 25,
+        "passed": 25,
+        "failed": 0,
+        "rateLimited": 0,
+        "passRate": "100.0%",
+        "failRate": "0.0%",
+        "avgLatency": "33.5ms",
+        "minLatency": "17.5ms",
+        "maxLatency": "65.9ms",
+        "p50": "35.5ms",
+        "p90": "41.9ms",
+        "p95": "43.9ms",
+        "p99": "65.9ms",
+        "statusCodes": {
+          "201": 25
+        }
+      }
+    },
+    "customerRequests": {
+      "description": "30 parallel customer requests: raising service calls (water, cutlery, plate) and querying request queues",
+      "total": 30,
+      "passed": 30,
+      "failed": 0,
+      "rateLimited": 0,
+      "passRate": "100.0%",
+      "failRate": "0.0%",
+      "avgLatency": "76.6ms",
+      "minLatency": "4.6ms",
+      "maxLatency": "174.5ms",
+      "p50": "25.9ms",
+      "p90": "162.2ms",
+      "p95": "171.0ms",
+      "p99": "174.5ms",
+      "statusCodes": {
+        "200": 15,
+        "201": 15
+      },
+      "byOperation": {
+        "Raise Request": {
+          "total": 15,
+          "passed": 15,
+          "failed": 0,
+          "rateLimited": 0,
+          "passRate": "100.0%",
+          "failRate": "0.0%",
+          "avgLatency": "138.1ms",
+          "minLatency": "70.6ms",
+          "maxLatency": "174.5ms",
+          "p50": "146.3ms",
+          "p90": "171.0ms",
+          "p95": "174.5ms",
+          "p99": "174.5ms",
+          "statusCodes": {
+            "201": 15
+          }
+        },
+        "Read Requests": {
+          "total": 15,
+          "passed": 15,
+          "failed": 0,
+          "rateLimited": 0,
+          "passRate": "100.0%",
+          "failRate": "0.0%",
+          "avgLatency": "15.0ms",
+          "minLatency": "4.6ms",
+          "maxLatency": "25.9ms",
+          "p50": "14.6ms",
+          "p90": "24.8ms",
+          "p95": "25.9ms",
+          "p99": "25.9ms",
+          "statusCodes": {
+            "200": 15
+          }
+        }
+      }
+    },
+    "cashierBilling": {
+      "description": "30 parallel cashier reads (today bills, unpaid bills, active orders, and bill history)",
+      "total": 30,
+      "passed": 30,
+      "failed": 0,
+      "rateLimited": 0,
+      "passRate": "100.0%",
+      "failRate": "0.0%",
+      "avgLatency": "78.0ms",
+      "minLatency": "4.4ms",
+      "maxLatency": "143.4ms",
+      "p50": "79.3ms",
+      "p90": "133.8ms",
+      "p95": "140.9ms",
+      "p99": "143.4ms",
+      "statusCodes": {
+        "200": 30
+      },
+      "byOperation": {
+        "Today Bills": {
+          "total": 8,
+          "passed": 8,
+          "failed": 0,
+          "rateLimited": 0,
+          "passRate": "100.0%",
+          "failRate": "0.0%",
+          "avgLatency": "75.1ms",
+          "minLatency": "4.4ms",
+          "maxLatency": "140.9ms",
+          "p50": "67.5ms",
+          "p90": "140.9ms",
+          "p95": "140.9ms",
+          "p99": "140.9ms",
+          "statusCodes": {
+            "200": 8
+          }
+        },
+        "Unpaid Bills": {
+          "total": 8,
+          "passed": 8,
+          "failed": 0,
+          "rateLimited": 0,
+          "passRate": "100.0%",
+          "failRate": "0.0%",
+          "avgLatency": "77.1ms",
+          "minLatency": "5.7ms",
+          "maxLatency": "143.4ms",
+          "p50": "68.7ms",
+          "p90": "143.4ms",
+          "p95": "143.4ms",
+          "p99": "143.4ms",
+          "statusCodes": {
+            "200": 8
+          }
+        },
+        "Active Orders": {
+          "total": 7,
+          "passed": 7,
+          "failed": 0,
+          "rateLimited": 0,
+          "passRate": "100.0%",
+          "failRate": "0.0%",
+          "avgLatency": "77.3ms",
+          "minLatency": "16.6ms",
+          "maxLatency": "133.8ms",
+          "p50": "79.3ms",
+          "p90": "133.8ms",
+          "p95": "133.8ms",
+          "p99": "133.8ms",
+          "statusCodes": {
+            "200": 7
+          }
+        },
+        "All Bills History": {
+          "total": 7,
+          "passed": 7,
+          "failed": 0,
+          "rateLimited": 0,
+          "passRate": "100.0%",
+          "failRate": "0.0%",
+          "avgLatency": "82.9ms",
+          "minLatency": "22.5ms",
+          "maxLatency": "138.3ms",
+          "p50": "85.3ms",
+          "p90": "138.3ms",
+          "p95": "138.3ms",
+          "p99": "138.3ms",
+          "statusCodes": {
+            "200": 7
+          }
+        }
+      }
+    },
+    "mixedLoad": {
+      "description": "100 parallel requests simulating peak service (2 Waiters, Cashier, Kitchen, and Server Health)",
+      "total": 100,
+      "passed": 100,
+      "failed": 0,
+      "rateLimited": 0,
+      "passRate": "100.0%",
+      "failRate": "0.0%",
+      "avgLatency": "267.7ms",
+      "minLatency": "14.2ms",
+      "maxLatency": "548.3ms",
+      "p50": "253.2ms",
+      "p90": "499.7ms",
+      "p95": "524.3ms",
+      "p99": "544.1ms",
+      "statusCodes": {
+        "200": 100
+      },
+      "byOperation": {
+        "Waiter 1: Floor Map": {
+          "total": 15,
+          "passed": 15,
+          "failed": 0,
+          "rateLimited": 0,
+          "passRate": "100.0%",
+          "failRate": "0.0%",
+          "avgLatency": "225.3ms",
+          "minLatency": "14.2ms",
+          "maxLatency": "544.1ms",
+          "p50": "196.9ms",
+          "p90": "469.3ms",
+          "p95": "544.1ms",
+          "p99": "544.1ms",
+          "statusCodes": {
+            "200": 15
+          }
+        },
+        "Kitchen: KDS Display": {
+          "total": 10,
+          "passed": 10,
+          "failed": 0,
+          "rateLimited": 0,
+          "passRate": "100.0%",
+          "failRate": "0.0%",
+          "avgLatency": "321.3ms",
+          "minLatency": "19.6ms",
+          "maxLatency": "548.3ms",
+          "p50": "382.9ms",
+          "p90": "518.4ms",
+          "p95": "548.3ms",
+          "p99": "548.3ms",
+          "statusCodes": {
+            "200": 10
+          }
+        },
+        "Cashier: Active Orders": {
+          "total": 10,
+          "passed": 10,
+          "failed": 0,
+          "rateLimited": 0,
+          "passRate": "100.0%",
+          "failRate": "0.0%",
+          "avgLatency": "270.9ms",
+          "minLatency": "25.4ms",
+          "maxLatency": "524.0ms",
+          "p50": "295.5ms",
+          "p90": "444.6ms",
+          "p95": "524.0ms",
+          "p99": "524.0ms",
+          "statusCodes": {
+            "200": 10
+          }
+        },
+        "Waiter 1: Live Orders": {
+          "total": 10,
+          "passed": 10,
+          "failed": 0,
+          "rateLimited": 0,
+          "passRate": "100.0%",
+          "failRate": "0.0%",
+          "avgLatency": "222.0ms",
+          "minLatency": "32.3ms",
+          "maxLatency": "528.5ms",
+          "p50": "128.7ms",
+          "p90": "420.4ms",
+          "p95": "528.5ms",
+          "p99": "528.5ms",
+          "statusCodes": {
+            "200": 10
+          }
+        },
+        "Menu: Live Feed": {
+          "total": 10,
+          "passed": 10,
+          "failed": 0,
+          "rateLimited": 0,
+          "passRate": "100.0%",
+          "failRate": "0.0%",
+          "avgLatency": "183.6ms",
+          "minLatency": "46.7ms",
+          "maxLatency": "386.3ms",
+          "p50": "113.8ms",
+          "p90": "325.0ms",
+          "p95": "386.3ms",
+          "p99": "386.3ms",
+          "statusCodes": {
+            "200": 10
+          }
+        },
+        "Monitor: Health": {
+          "total": 10,
+          "passed": 10,
+          "failed": 0,
+          "rateLimited": 0,
+          "passRate": "100.0%",
+          "failRate": "0.0%",
+          "avgLatency": "297.0ms",
+          "minLatency": "68.4ms",
+          "maxLatency": "524.3ms",
+          "p50": "295.7ms",
+          "p90": "518.8ms",
+          "p95": "524.3ms",
+          "p99": "524.3ms",
+          "statusCodes": {
+            "200": 10
+          }
+        },
+        "Waiter 2: Floor Map": {
+          "total": 15,
+          "passed": 15,
+          "failed": 0,
+          "rateLimited": 0,
+          "passRate": "100.0%",
+          "failRate": "0.0%",
+          "avgLatency": "264.4ms",
+          "minLatency": "80.0ms",
+          "maxLatency": "536.6ms",
+          "p50": "225.6ms",
+          "p90": "510.7ms",
+          "p95": "536.6ms",
+          "p99": "536.6ms",
+          "statusCodes": {
+            "200": 15
+          }
+        },
+        "Cashier: Today Bills": {
+          "total": 10,
+          "passed": 10,
+          "failed": 0,
+          "rateLimited": 0,
+          "passRate": "100.0%",
+          "failRate": "0.0%",
+          "avgLatency": "286.6ms",
+          "minLatency": "96.6ms",
+          "maxLatency": "476.7ms",
+          "p50": "267.3ms",
+          "p90": "432.9ms",
+          "p95": "476.7ms",
+          "p99": "476.7ms",
+          "statusCodes": {
+            "200": 10
+          }
+        },
+        "Waiter 2: Requests": {
+          "total": 10,
+          "passed": 10,
+          "failed": 0,
+          "rateLimited": 0,
+          "passRate": "100.0%",
+          "failRate": "0.0%",
+          "avgLatency": "361.1ms",
+          "minLatency": "212.7ms",
+          "maxLatency": "539.0ms",
+          "p50": "344.8ms",
+          "p90": "474.5ms",
+          "p95": "539.0ms",
+          "p99": "539.0ms",
+          "statusCodes": {
+            "200": 10
+          }
+        }
+      }
+    },
+    "sustainedThroughput": {
+      "description": "5 waves of 20 requests with 150ms intervals to test sustained throughput under continuous traffic",
+      "total": 100,
+      "passed": 100,
+      "failed": 0,
+      "rateLimited": 0,
+      "passRate": "100.0%",
+      "failRate": "0.0%",
+      "avgLatency": "5.7ms",
+      "minLatency": "2.1ms",
+      "maxLatency": "10.9ms",
+      "p50": "5.8ms",
+      "p90": "8.5ms",
+      "p95": "9.4ms",
+      "p99": "10.7ms",
+      "statusCodes": {
+        "200": 100
+      },
+      "waves": 5,
+      "requestsPerWave": 20
+    },
+    "loginRateLimit": {
+      "description": "50 rapid unauthorized login requests to verify express-rate-limit protection (limit: 30)",
+      "total": 50,
+      "passed": 0,
+      "failed": 50,
+      "rateLimited": 50,
+      "passRate": "0.0%",
+      "failRate": "100.0%",
+      "avgLatency": "17.6ms",
+      "minLatency": "9.0ms",
+      "maxLatency": "25.7ms",
+      "p50": "18.8ms",
+      "p90": "24.8ms",
+      "p95": "25.4ms",
+      "p99": "25.7ms",
+      "statusCodes": {
+        "429": 50
+      },
+      "rateLimitTriggered": true,
+      "detectedAt": "Rate limit triggered successfully at request #1"
+    }
+  }
+}

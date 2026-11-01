@@ -1,0 +1,1238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sizzle Load Test Report</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg-deep: #0a0a0f;
+      --bg-card: #12121a;
+      --bg-surface: #1a1a2e;
+      --bg-glass: rgba(255,255,255,0.03);
+      --border: rgba(255,255,255,0.06);
+      --border-glow: rgba(99, 102, 241, 0.3);
+      --text-primary: #f0f0f5;
+      --text-secondary: #8888aa;
+      --text-muted: #555570;
+      --accent-green: #00e676;
+      --accent-red: #ff5252;
+      --accent-amber: #ffc107;
+      --accent-blue: #6366f1;
+      --accent-cyan: #22d3ee;
+      --accent-purple: #a855f7;
+      --gradient-hero: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      --gradient-card: linear-gradient(135deg, rgba(99,102,241,0.08) 0%, rgba(168,85,247,0.04) 100%);
+      --shadow-xl: 0 25px 50px -12px rgba(0,0,0,0.5);
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-deep);
+      color: var(--text-primary);
+      min-height: 100vh;
+      line-height: 1.6;
+    }
+
+    /* ── HERO ── */
+    .hero {
+      position: relative;
+      overflow: hidden;
+      padding: 60px 24px 48px;
+      background: linear-gradient(180deg, #0f0f1a 0%, var(--bg-deep) 100%);
+    }
+    .hero::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      left: -20%;
+      width: 140%;
+      height: 200%;
+      background: radial-gradient(ellipse at 30% 20%, rgba(99,102,241,0.12) 0%, transparent 50%),
+                  radial-gradient(ellipse at 70% 60%, rgba(168,85,247,0.08) 0%, transparent 50%);
+      pointer-events: none;
+    }
+    .hero-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+      position: relative;
+      z-index: 1;
+    }
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 16px;
+      border-radius: 100px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      background: rgba(99,102,241,0.15);
+      border: 1px solid rgba(99,102,241,0.3);
+      color: #818cf8;
+      margin-bottom: 20px;
+    }
+    .hero h1 {
+      font-size: clamp(28px, 5vw, 48px);
+      font-weight: 900;
+      letter-spacing: -1.5px;
+      background: linear-gradient(135deg, #fff 30%, #818cf8 70%, #a855f7);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 8px;
+    }
+    .hero .subtitle {
+      font-size: 15px;
+      color: var(--text-secondary);
+      max-width: 600px;
+    }
+    .meta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      margin-top: 24px;
+    }
+    .meta-item {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+    .meta-item strong {
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+
+    /* ── SUMMARY ── */
+    .summary-strip {
+      max-width: 1200px;
+      margin: -24px auto 32px;
+      padding: 0 24px;
+      position: relative;
+      z-index: 2;
+    }
+    .summary-card {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 1px;
+      background: var(--border);
+      border-radius: 16px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow-xl);
+    }
+    .sum-cell {
+      background: var(--bg-card);
+      padding: 24px;
+      text-align: center;
+    }
+    .sum-cell:first-child { border-radius: 16px 0 0 16px; }
+    .sum-cell:last-child { border-radius: 0 16px 16px 0; }
+    .sum-value {
+      display: block;
+      font-size: 32px;
+      font-weight: 800;
+      font-family: 'JetBrains Mono', monospace;
+      line-height: 1.2;
+    }
+    .sum-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .verdict-banner {
+      max-width: 1200px;
+      margin: 0 auto 40px;
+      padding: 0 24px;
+    }
+    .verdict-inner {
+      padding: 20px 28px;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 600;
+      text-align: center;
+      letter-spacing: 0.3px;
+    }
+    .verdict-pass { background: rgba(0,230,118,0.08); border: 1px solid rgba(0,230,118,0.2); color: #00e676; }
+    .verdict-warn { background: rgba(255,193,7,0.08); border: 1px solid rgba(255,193,7,0.2); color: #ffc107; }
+    .verdict-fail { background: rgba(255,82,82,0.08); border: 1px solid rgba(255,82,82,0.2); color: #ff5252; }
+
+    /* ── TEST CARDS ── */
+    .tests-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 24px 80px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+      gap: 24px;
+    }
+    @media (max-width: 600px) {
+      .tests-container { grid-template-columns: 1fr; }
+    }
+    .test-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 28px;
+      transition: border-color 0.3s, box-shadow 0.3s;
+    }
+    .test-card:hover {
+      border-color: var(--border-glow);
+      box-shadow: 0 0 40px rgba(99,102,241,0.06);
+    }
+    .test-card.skipped {
+      opacity: 0.5;
+      border-style: dashed;
+    }
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 8px;
+    }
+    .test-card h3 {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+    .description {
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin-bottom: 16px;
+      line-height: 1.5;
+    }
+
+    .badge {
+      padding: 4px 12px;
+      border-radius: 100px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      flex-shrink: 0;
+    }
+    .pass-badge { background: rgba(0,230,118,0.12); color: #00e676; border: 1px solid rgba(0,230,118,0.3); }
+    .warn-badge { background: rgba(255,193,7,0.12); color: #ffc107; border: 1px solid rgba(255,193,7,0.3); }
+    .fail-badge { background: rgba(255,82,82,0.12); color: #ff5252; border: 1px solid rgba(255,82,82,0.3); }
+    .skip-badge { background: rgba(136,136,170,0.12); color: #888; border: 1px solid rgba(136,136,170,0.3); }
+
+    .rate-limit-box {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 16px;
+      border-radius: 10px;
+      font-size: 13px;
+      margin-bottom: 16px;
+    }
+    .rate-limit-box.triggered {
+      background: rgba(0,230,118,0.06);
+      border: 1px solid rgba(0,230,118,0.15);
+      color: var(--accent-green);
+    }
+    .rate-limit-box.not-triggered {
+      background: rgba(255,193,7,0.06);
+      border: 1px solid rgba(255,193,7,0.15);
+      color: var(--accent-amber);
+    }
+    .rl-icon { font-size: 18px; }
+
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .metric {
+      text-align: center;
+      padding: 12px 4px;
+      border-radius: 10px;
+      background: var(--bg-glass);
+      border: 1px solid var(--border);
+    }
+    .metric-value {
+      display: block;
+      font-size: 22px;
+      font-weight: 800;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .metric-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-muted);
+    }
+
+    .latency-bar {
+      display: flex;
+      gap: 1px;
+      border-radius: 10px;
+      overflow: hidden;
+      background: var(--border);
+      margin-bottom: 16px;
+    }
+    .latency-item {
+      flex: 1;
+      background: var(--bg-surface);
+      padding: 10px 4px;
+      text-align: center;
+    }
+    .lat-label {
+      display: block;
+      font-size: 10px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+    }
+    .lat-value {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--accent-cyan);
+      margin-top: 2px;
+    }
+
+    .status-codes {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 16px;
+    }
+    .sc-chip {
+      padding: 3px 10px;
+      border-radius: 100px;
+      font-size: 11px;
+      font-weight: 600;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .sc-2 { background: rgba(0,230,118,0.1); color: #00e676; }
+    .sc-3 { background: rgba(34,211,238,0.1); color: #22d3ee; }
+    .sc-4 { background: rgba(255,193,7,0.1); color: #ffc107; }
+    .sc-5 { background: rgba(255,82,82,0.1); color: #ff5252; }
+    .sc-0 { background: rgba(136,136,170,0.1); color: #888; }
+
+    .breakdown {
+      margin-top: 16px;
+      border-top: 1px solid var(--border);
+      padding-top: 16px;
+    }
+    .breakdown h4 {
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+    }
+    .breakdown table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    .breakdown th {
+      text-align: left;
+      padding: 6px 8px;
+      font-weight: 600;
+      color: var(--text-muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      border-bottom: 1px solid var(--border);
+    }
+    .breakdown td {
+      padding: 8px;
+      border-bottom: 1px solid rgba(255,255,255,0.02);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+    }
+    .ep-name {
+      font-family: 'Inter', sans-serif !important;
+      font-weight: 500;
+      color: var(--text-secondary);
+    }
+    .pass-cell { color: var(--accent-green); }
+    .fail-cell { color: var(--accent-red); }
+    .breakdown tr:hover td { background: rgba(255,255,255,0.015); }
+
+    /* ── FOOTER ── */
+    .footer {
+      text-align: center;
+      padding: 32px 24px;
+      font-size: 12px;
+      color: var(--text-muted);
+      border-top: 1px solid var(--border);
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    .footer a { color: var(--accent-blue); text-decoration: none; }
+
+    /* ── ANIMATIONS ── */
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .test-card {
+      animation: fadeUp 0.5s ease-out both;
+    }
+    .test-card:nth-child(1) { animation-delay: 0.05s; }
+    .test-card:nth-child(2) { animation-delay: 0.1s; }
+    .test-card:nth-child(3) { animation-delay: 0.15s; }
+    .test-card:nth-child(4) { animation-delay: 0.2s; }
+    .test-card:nth-child(5) { animation-delay: 0.25s; }
+    .test-card:nth-child(6) { animation-delay: 0.3s; }
+    .test-card:nth-child(7) { animation-delay: 0.35s; }
+    .test-card:nth-child(8) { animation-delay: 0.4s; }
+  </style>
+</head>
+<body>
+  <div class="hero">
+    <div class="hero-inner">
+      <div class="hero-badge">🔥 Load Test Report</div>
+      <h1>Sizzle Restaurant API</h1>
+      <p class="subtitle">Performance & rate-limiting analysis across all service endpoints — waiters, cashiers, kitchen, and customer flows.</p>
+      <div class="meta-row">
+        <span class="meta-item"><strong>Target:</strong> http://127.0.0.1:4000</span>
+        <span class="meta-item"><strong>Time:</strong> 1/11/2026, 11:49:36 pm</span>
+        <span class="meta-item"><strong>Duration:</strong> 6.8s</span>
+        <span class="meta-item"><strong>Node:</strong> v24.21.0</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="summary-strip">
+    <div class="summary-card">
+      <div class="sum-cell">
+        <span class="sum-value" style="color: var(--accent-blue)">464</span>
+        <span class="sum-label">Total Requests</span>
+      </div>
+      <div class="sum-cell">
+        <span class="sum-value" style="color: var(--accent-green)">410</span>
+        <span class="sum-label">Passed</span>
+      </div>
+      <div class="sum-cell">
+        <span class="sum-value" style="color: var(--accent-red)">50</span>
+        <span class="sum-label">Failed</span>
+      </div>
+      <div class="sum-cell">
+        <span class="sum-value" style="color: var(--accent-amber)">50</span>
+        <span class="sum-label">Rate Limited</span>
+      </div>
+      <div class="sum-cell">
+        <span class="sum-value" style="color: #00e676">99.0%</span>
+        <span class="sum-label">Pass Rate</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="verdict-banner">
+    <div class="verdict-inner verdict-pass">
+      ✅ PASS — System handles heavy concurrent load with flying colors
+    </div>
+  </div>
+
+  <div class="tests-container">
+    
+    <div class="test-card">
+      <div class="card-header">
+        <h3>Valid Logins</h3>
+        <div class="badge fail-badge">FAIL</div>
+      </div>
+      <p class="description">Authenticate floor staff roles (2 Waiters, Cashier, Kitchen) and harvest JWT tokens</p>
+      
+      <div class="metrics-grid">
+        <div class="metric">
+          <span class="metric-value">4</span>
+          <span class="metric-label">Requests</span>
+        </div>
+        <div class="metric">
+          <span class="metric-value" style="color: #00e676">undefined</span>
+          <span class="metric-label">Passed</span>
+        </div>
+        <div class="metric">
+          <span class="metric-value" style="color: #888">0</span>
+          <span class="metric-label">Failed</span>
+        </div>
+        <div class="metric">
+          <span class="metric-value" style="color: #888">0</span>
+          <span class="metric-label">Rate Limited</span>
+        </div>
+      </div>
+      <div class="latency-bar">
+        <div class="latency-item">
+          <span class="lat-label">Avg</span>
+          <span class="lat-value">—</span>
+        </div>
+        <div class="latency-item">
+          <span class="lat-label">P50</span>
+          <span class="lat-value">—</span>
+        </div>
+        <div class="latency-item">
+          <span class="lat-label">P90</span>
+          <span class="lat-value">—</span>
+        </div>
+        <div class="latency-item">
+          <span class="lat-label">P95</span>
+          <span class="lat-value">—</span>
+        </div>
+        <div class="latency-item">
+          <span class="lat-label">P99</span>
+          <span class="lat-value">—</span>
+        </div>
+        <div class="latency-item">
+          <span class="lat-label">Max</span>
+          <span class="lat-value">—</span>
+        </div>
+      </div>
+      
+      
+    </div>
+  
+    <div class="test-card">
+      <div class="card-header">
+        <h3>Concurrent Reads</h3>
+        <div class="badge pass-badge">PASS</div>
+      </div>
+      <p class="description">100 parallel GET requests across 10 core endpoints simulating concurrent staff activity</p>
+      
+      <div class="metrics-grid">
+        <div class="metric">
+          <span class="metric-value">100</span>
+          <span class="metric-label">Requests</span>
+        </div>
+        <div class="metric">
+          <span class="metric-value" style="color: #00e676">100</span>
+          <span class="metric-label">Passed</span>
+        </div>
+        <div class="metric">
+          <span class="metric-value" style="color: #888">0</span>
+          <span class="metric-label">Failed</span>
+        </div>
+        <div class="metric">
+          <span class="metric-value" style="color: #888">0</span>
+          <span class="metric-label">Rate Limited</span>
+        </div>
+      </div>
+      <div class="latency-bar">
+        <div class="latency-item">
+          <span class="lat-label">Avg</span>
+          <span class="lat-value">265.6ms</span>
+        </div>
+        <div class="latency-item">
+          <span class="lat-label">P50</span>
+          <span class="lat-value">266.6ms</span>
+        </div>
+        <div class="latency-item">
+          <span class="lat-label">P90</span>
+          <span class="lat-value">433.2ms</span>
+        </div>
+        <div class="latency-item">
+          <span class="lat-label">P95</span>
+          <span class="lat-value">454.0ms</span>
+        </div>
+        <div class="latency-item">
+          <span class="lat-label">P99</span>
+          <span class="lat-value">484.1ms</span>
+        </div>
+        <div class="latency-item">
+          <span class="lat-label">Max</span>
+          <span class="lat-value">485.3ms</span>
+        </div>
+      </div>
+      
+      <div class="status-codes">
+        
+          <span class="sc-chip sc-2">200: 100</span>
+        
+      </div>
+    
+      
+      <div class="breakdown">
+        <h4>Endpoint Breakdown</h4>
+        <table>
+          <thead>
+            <tr>
+              <th>Endpoint</th>
+              <th>Total</th>
+              <th>Pass</th>
+              <th>Fail</th>
+              <th>Avg</th>
+              <th>P95</th>
+            </tr>
+          </thead>
+          <tbody>
+            
+              <tr>
+                <td class="ep-name">Waiter Map</td>
+                <td>10</td>
+                <td class="pass-cell">10</td>
+                <td class="fail-cell">0</td>
+                <td>280.3ms</td>
+                <td>484.1ms</td>
+              </tr>
+            
+              <tr>
+                <td class="ep-name">Customer Requests</td>
+                <td>10</td>
+                <td class="pass-cell">10</td>
+                <td class="fail-cell">0</td>
+                <td>283.1ms</td>
+                <td>485.3ms</td>
+              </tr>
+            
+              <tr>
+                <td class="ep-name">Live Orders</td>
+                <td>10</td>
+                <td class="pass-cell">10</td>
+                <td class="fail-cell">0</td>
+                <td>248.6ms</td>
+                <td>441.4ms</td>
+              </tr>
+            
+              <tr>
+                <td class="ep-name">Active Orders</td>
+                <td>10</td>
+                <td class="pass-cell">10</td>
+                <td class="fail-cell">0</td>
+                <td>256.2ms</td>
+                <td>451.1ms</td>
+              </tr>
+            
+              <tr>
+                <td class="ep-name">Full Menu</td>
+                <td>10</td>
+                <td class="pass-cell">10</td>
+                <td class="fail-cell">0</td>
+                <td>259.3ms</td>
+                <td>452.2ms</td>
+              </tr>
+            
+              <tr>
+                <td class="ep-name">Tables List</td>
+                <td>10</td>
+                <td class="pass-cell">10</td>
+                <td class="fail-cell">0</td>
+                <td>260.9ms</td>
+                <td>452.9ms</td>
+              </tr>
+            
+              <tr>
+                <td class="ep-name">Today Bills</td>
+                <td>10</td>
+                <td class="pass-cell">10</td>
+                <td class="fail-cell">0</td>
+                <td>262.9ms</td>
+                <td>454.0ms</td>
+              </tr>
+            
+              <tr>
+                <td class="ep-name">Notifications</td>
+                <td>10</td>
+                <td class="pass-cell">10</td>
+                <td class="fail-cell">0</td>
+                <td>267.2ms</td>
+                <td>456.1ms</td>
+              </tr>
+            
+              <tr>
+                <td class="ep-name">My Profile</td>
+                <td>10</td>
+                <td class="pass-cell">10</td>
+                <td class="fail-cell">0</td>
+                <td>268.5ms</td>
+                <td>456.8ms</td>
+              </tr>
+            
+              <tr>
+                <td class="ep-name">Health Check</td>
+                <td>10</td>
+                <td class="pass-cell">10</td>
+                <td class="fail-cell">0</td>
+                <td>268.8ms</td>
+                <td>457.1ms</td>
+              </tr>
+            
+          </tbody>
+        </table>
+      </div>
+    
+    </div>
+  
+    <div class="test-card">
+      <div class="card-header">
+        <h3>Two Waiter Orders</h3>
+        <div class="badge pass-badge">PASS</div>
+      </div>
+      <p class="description">50 concurrent orders placed simultaneously split between Waiter 1 (Sneha) & Waiter 2 (Imran)</p>
+      
+      <div class="metrics-grid">
+        <div class="metric">
+          <span class="metric-value">50</span>
+          <span class="metric-label">Requests</span>
+        </div>
+        <div class="metric">
+          <span class="metric-value" style="color: #00e676">50</span>
+          <span class="metric-label">Passed</span>
+        </div>
+        <div class="metric">
+          <span class="metric-value" style="color: #888">0</span>
+          <span class="metric-label">Failed</span>
+        </div>
+        <div class="metric">
+          <span class="metric-value" style="color: #888">0</span>
+          <span class="metric-label">Rate Limited</span>
+        </div>
+      </div>
+      <div class="latency-bar">
+        <div class="latency-item">
+          <span class="lat-label">Avg</span>
+          <span class="lat-value">33.1ms</span>
+        </div>
+        <div class="latency-item">
+          <span class="lat-label">P50</span>
+          <span class="lat-value">34.9ms</span>
+        </div>
+        <div class="latency-item">
+          <span class="lat-label">P90</span>
+          <span class="lat-value">41.9ms</span>
+        </div>
+        <div class="latency-item">
+          <span class="lat-label">P95</span>
+          <span class="lat-value">45.8ms</span>
+        </div>
+        <div class="latency-item">
+          <span class="lat-label">P99</span>
+          <span class="lat-value">65.9ms</span>
+        </div>
+        <div class="latency-item">
+          <span class="lat-label">Max</span>
+          <span class="lat-value">65.9ms</span>
+        </div>
+      </div>
+      
+      <div class="status-codes">
+        
+          <span class="sc-chip sc-2">201: 50</span>
+        
+      </div>
+    
+      
+    </div>
+  
+    <div class="test-card">
+      <div class="card-header">
+        <h3>Customer Requests</h3>
+        <div class="badge pass-badge">PASS</div>
+      </div>
+      <p class="description">30 parallel customer requests: raising service calls (water, cutlery, plate) and querying request queues</p>
+      
+      <div class="metrics-grid">
+        <div class="metric">
+          <span class="metric-value">30</span>
+          <span class="metric-label">Requests</span>
+        </div>
+        <div class="metric">
+          <span class="metric-value" style="color: #00e676">30</span>
+          <span class="metric-label">Passed</span>
+        </div>
+        <div class="metric">
+          <span class="metric-value" style="color: #888">0</span>
+          <span class="metric-label">Failed</span>
+        </div>
+        <div class="metric">
+          <span class="metric-value" style="color: #888">0</span>
+          <span class="metric-label">Rate Limited</span>
+        </div>
+      </div>
+      <div class="latency-bar">
+        <div class="latency-item">
+          <span class="lat-label">Avg</span>
+          <span class="lat-value">76.6ms</span>
+        </div>
+        <div class="latency-item">
+          <span class="lat-label">P50</span>
+          <span class="lat-value">25.9ms</span>
+        </div>
+        <div class="latency-item">
+          <span class="lat-label">P90</span>
+          <span class="lat-value">162.2ms</span>
+        </div>
+        <div class="latency-item">
+          <span class="lat-label">P95</span>
+          <span class="lat-value">171.0ms</span>
+        </div>
+        <div class="latency-item">
+          <span class="lat-label">P99</span>
+          <span class="lat-value">174.5ms</span>
+        </div>
+        <div class="latency-item">
+          <span class="lat-label">Max</span>
+          <span class="lat-value">174.5ms</span>
+        </div>
+      </div>
+      
+      <div class="status-codes">
+        
+          <span class="sc-chip sc-2">200: 15</span>
+        
+          <span class="sc-chip sc-2">201: 15</span>
+        
+      </div>
+    
+      
+      <div class="breakdown">
+        <h4>Endpoint Breakdown</h4>
+        <table>
+          <thead>
+            <tr>
+              <th>Endpoint</th>
+              <th>Total</th>
+              <th>Pass</th>
+              <th>Fail</th>
+              <th>Avg</th>
+              <th>P95</th>
+            </tr>
+          </thead>
+          <tbody>
+            
+              <tr>
+                <td class="ep-name">Raise Request</td>
+                <td>15</td>
+                <td class="pass-cell">15</td>
+                <td class="fail-cell">0</td>
+                <td>138.1ms</td>
+                <td>174.5ms</td>
+              </tr>
+            
+              <tr>
+                <td class="ep-name">Read Requests</td>
+                <td>15</td>
+                <td class="pass-cell">15</td>
+                <td class="fail-cell">0</td>
+                <td>15.0ms</td>
+                <td>25.9ms</td>
+              </tr>
+            
+          </tbody>
+        </table>
+      </div>
+    
+    </div>
+  
+    <div class="test-card">
+      <div class="card-header">
+        <h3>Cashier Billing</h3>
+        <div class="badge pass-badge">PASS</div>
+      </div>
+      <p class="description">30 parallel cashier reads (today bills, unpaid bills, active orders, and bill history)</p>
+      
+      <div class="metrics-grid">
+        <div class="metric">
+          <span class="metric-value">30</span>
+          <span class="metric-label">Requests</span>
+        </div>
+        <div class="metric">
+          <span class="metric-value" style="color: #00e676">30</span>
+          <span class="metric-label">Passed</span>
+        </div>
+        <div class="metric">
+          <span class="metric-value" style="color: #888">0</span>
+          <span class="metric-label">Failed</span>
+        </div>
+        <div class="metric">
+          <span class="metric-value" style="color: #888">0</span>
+          <span class="metric-label">Rate Limited</span>
+        </div>
+      </div>
+      <div class="latency-bar">
+        <div class="latency-item">
+          <span class="lat-label">Avg</span>
+          <span class="lat-value">78.0ms</span>
+        </div>
+        <div class="latency-item">
+          <span class="lat-label">P50</span>
+          <span class="lat-value">79.3ms</span>
+        </div>
+        <div class="latency-item">
+          <span class="lat-label">P90</span>
+          <span class="lat-value">133.8ms</span>
+        </div>
+        <div class="latency-item">
+          <span class="lat-label">P95</span>
+          <span class="lat-value">140.9ms</span>
+        </div>
+        <div class="latency-item">
+          <span class="lat-label">P99</span>
+          <span class="lat-value">143.4ms</span>
+        </div>
+        <div class="latency-item">
+          <span class="lat-label">Max</span>
+          <span class="lat-value">143.4ms</span>
+        </div>
+      </div>
+      
+      <div class="status-codes">
+        
+          <span class="sc-chip sc-2">200: 30</span>
+        
+      </div>
+    
+      
+      <div class="breakdown">
+        <h4>Endpoint Breakdown</h4>
+        <table>
+          <thead>
+            <tr>
+              <th>Endpoint</th>
+              <th>Total</th>
+              <th>Pass</th>
+              <th>Fail</th>
+              <th>Avg</th>
+              <th>P95</th>
+            </tr>
+          </thead>
+          <tbody>
+            
+              <tr>
+                <td class="ep-name">Today Bills</td>
+                <td>8</td>
+                <td class="pass-cell">8</td>
+                <td class="fail-cell">0</td>
+                <td>75.1ms</td>
+                <td>140.9ms</td>
+              </tr>
+            
+              <tr>
+                <td class="ep-name">Unpaid Bills</td>
+                <td>8</td>
+                <td class="pass-cell">8</td>
+                <td class="fail-cell">0</td>
+                <td>77.1ms</td>
+                <td>143.4ms</td>
+              </tr>
+            
+              <tr>
+                <td class="ep-name">Active Orders</td>
+                <td>7</td>
+                <td class="pass-cell">7</td>
+                <td class="fail-cell">0</td>
+                <td>77.3ms</td>
+                <td>133.8ms</td>
+              </tr>
+            
+              <tr>
+                <td class="ep-name">All Bills History</td>
+                <td>7</td>
+                <td class="pass-cell">7</td>
+                <td class="fail-cell">0</td>
+                <td>82.9ms</td>
+                <td>138.3ms</td>
+              </tr>
+            
+          </tbody>
+        </table>
+      </div>
+    
+    </div>
+  
+    <div class="test-card">
+      <div class="card-header">
+        <h3>Mixed Load</h3>
+        <div class="badge pass-badge">PASS</div>
+      </div>
+      <p class="description">100 parallel requests simulating peak service (2 Waiters, Cashier, Kitchen, and Server Health)</p>
+      
+      <div class="metrics-grid">
+        <div class="metric">
+          <span class="metric-value">100</span>
+          <span class="metric-label">Requests</span>
+        </div>
+        <div class="metric">
+          <span class="metric-value" style="color: #00e676">100</span>
+          <span class="metric-label">Passed</span>
+        </div>
+        <div class="metric">
+          <span class="metric-value" style="color: #888">0</span>
+          <span class="metric-label">Failed</span>
+        </div>
+        <div class="metric">
+          <span class="metric-value" style="color: #888">0</span>
+          <span class="metric-label">Rate Limited</span>
+        </div>
+      </div>
+      <div class="latency-bar">
+        <div class="latency-item">
+          <span class="lat-label">Avg</span>
+          <span class="lat-value">267.7ms</span>
+        </div>
+        <div class="latency-item">
+          <span class="lat-label">P50</span>
+          <span class="lat-value">253.2ms</span>
+        </div>
+        <div class="latency-item">
+          <span class="lat-label">P90</span>
+          <span class="lat-value">499.7ms</span>
+        </div>
+        <div class="latency-item">
+          <span class="lat-label">P95</span>
+          <span class="lat-value">524.3ms</span>
+        </div>
+        <div class="latency-item">
+          <span class="lat-label">P99</span>
+          <span class="lat-value">544.1ms</span>
+        </div>
+        <div class="latency-item">
+          <span class="lat-label">Max</span>
+          <span class="lat-value">548.3ms</span>
+        </div>
+      </div>
+      
+      <div class="status-codes">
+        
+          <span class="sc-chip sc-2">200: 100</span>
+        
+      </div>
+    
+      
+      <div class="breakdown">
+        <h4>Endpoint Breakdown</h4>
+        <table>
+          <thead>
+            <tr>
+              <th>Endpoint</th>
+              <th>Total</th>
+              <th>Pass</th>
+              <th>Fail</th>
+              <th>Avg</th>
+              <th>P95</th>
+            </tr>
+          </thead>
+          <tbody>
+            
+              <tr>
+                <td class="ep-name">Waiter 1: Floor Map</td>
+                <td>15</td>
+                <td class="pass-cell">15</td>
+                <td class="fail-cell">0</td>
+                <td>225.3ms</td>
+                <td>544.1ms</td>
+              </tr>
+            
+              <tr>
+                <td class="ep-name">Kitchen: KDS Display</td>
+                <td>10</td>
+                <td class="pass-cell">10</td>
+                <td class="fail-cell">0</td>
+                <td>321.3ms</td>
+                <td>548.3ms</td>
+              </tr>
+            
+              <tr>
+                <td class="ep-name">Cashier: Active Orders</td>
+                <td>10</td>
+                <td class="pass-cell">10</td>
+                <td class="fail-cell">0</td>
+                <td>270.9ms</td>
+                <td>524.0ms</td>
+              </tr>
+            
+              <tr>
+                <td class="ep-name">Waiter 1: Live Orders</td>
+                <td>10</td>
+                <td class="pass-cell">10</td>
+                <td class="fail-cell">0</td>
+                <td>222.0ms</td>
+                <td>528.5ms</td>
+              </tr>
+            
+              <tr>
+                <td class="ep-name">Menu: Live Feed</td>
+                <td>10</td>
+                <td class="pass-cell">10</td>
+                <td class="fail-cell">0</td>
+                <td>183.6ms</td>
+                <td>386.3ms</td>
+              </tr>
+            
+              <tr>
+                <td class="ep-name">Monitor: Health</td>
+                <td>10</td>
+                <td class="pass-cell">10</td>
+                <td class="fail-cell">0</td>
+                <td>297.0ms</td>
+                <td>524.3ms</td>
+              </tr>
+            
+              <tr>
+                <td class="ep-name">Waiter 2: Floor Map</td>
+                <td>15</td>
+                <td class="pass-cell">15</td>
+                <td class="fail-cell">0</td>
+                <td>264.4ms</td>
+                <td>536.6ms</td>
+              </tr>
+            
+              <tr>
+                <td class="ep-name">Cashier: Today Bills</td>
+                <td>10</td>
+                <td class="pass-cell">10</td>
+                <td class="fail-cell">0</td>
+                <td>286.6ms</td>
+                <td>476.7ms</td>
+              </tr>
+            
+              <tr>
+                <td class="ep-name">Waiter 2: Requests</td>
+                <td>10</td>
+                <td class="pass-cell">10</td>
+                <td class="fail-cell">0</td>
+                <td>361.1ms</td>
+                <td>539.0ms</td>
+              </tr>
+            
+          </tbody>
+        </table>
+      </div>
+    
+    </div>
+  
+    <div class="test-card">
+      <div class="card-header">
+        <h3>Sustained Throughput</h3>
+        <div class="badge pass-badge">PASS</div>
+      </div>
+      <p class="description">5 waves of 20 requests with 150ms intervals to test sustained throughput under continuous traffic</p>
+      
+      <div class="metrics-grid">
+        <div class="metric">
+          <span class="metric-value">100</span>
+          <span class="metric-label">Requests</span>
+        </div>
+        <div class="metric">
+          <span class="metric-value" style="color: #00e676">100</span>
+          <span class="metric-label">Passed</span>
+        </div>
+        <div class="metric">
+          <span class="metric-value" style="color: #888">0</span>
+          <span class="metric-label">Failed</span>
+        </div>
+        <div class="metric">
+          <span class="metric-value" style="color: #888">0</span>
+          <span class="metric-label">Rate Limited</span>
+        </div>
+      </div>
+      <div class="latency-bar">
+        <div class="latency-item">
+          <span class="lat-label">Avg</span>
+          <span class="lat-value">5.7ms</span>
+        </div>
+        <div class="latency-item">
+          <span class="lat-label">P50</span>
+          <span class="lat-value">5.8ms</span>
+        </div>
+        <div class="latency-item">
+          <span class="lat-label">P90</span>
+          <span class="lat-value">8.5ms</span>
+        </div>
+        <div class="latency-item">
+          <span class="lat-label">P95</span>
+          <span class="lat-value">9.4ms</span>
+        </div>
+        <div class="latency-item">
+          <span class="lat-label">P99</span>
+          <span class="lat-value">10.7ms</span>
+        </div>
+        <div class="latency-item">
+          <span class="lat-label">Max</span>
+          <span class="lat-value">10.9ms</span>
+        </div>
+      </div>
+      
+      <div class="status-codes">
+        
+          <span class="sc-chip sc-2">200: 100</span>
+        
+      </div>
+    
+      
+    </div>
+  
+    <div class="test-card">
+      <div class="card-header">
+        <h3>Login Rate Limit</h3>
+        <div class="badge fail-badge">FAIL</div>
+      </div>
+      <p class="description">50 rapid unauthorized login requests to verify express-rate-limit protection (limit: 30)</p>
+      
+      <div class="rate-limit-box triggered">
+        <span class="rl-icon">🛡️</span>
+        <span>Rate limit triggered successfully at request #1</span>
+      </div>
+    
+      <div class="metrics-grid">
+        <div class="metric">
+          <span class="metric-value">50</span>
+          <span class="metric-label">Requests</span>
+        </div>
+        <div class="metric">
+          <span class="metric-value" style="color: #00e676">0</span>
+          <span class="metric-label">Passed</span>
+        </div>
+        <div class="metric">
+          <span class="metric-value" style="color: #ff5252">50</span>
+          <span class="metric-label">Failed</span>
+        </div>
+        <div class="metric">
+          <span class="metric-value" style="color: #ffc107">50</span>
+          <span class="metric-label">Rate Limited</span>
+        </div>
+      </div>
+      <div class="latency-bar">
+        <div class="latency-item">
+          <span class="lat-label">Avg</span>
+          <span class="lat-value">17.6ms</span>
+        </div>
+        <div class="latency-item">
+          <span class="lat-label">P50</span>
+          <span class="lat-value">18.8ms</span>
+        </div>
+        <div class="latency-item">
+          <span class="lat-label">P90</span>
+          <span class="lat-value">24.8ms</span>
+        </div>
+        <div class="latency-item">
+          <span class="lat-label">P95</span>
+          <span class="lat-value">25.4ms</span>
+        </div>
+        <div class="latency-item">
+          <span class="lat-label">P99</span>
+          <span class="lat-value">25.7ms</span>
+        </div>
+        <div class="latency-item">
+          <span class="lat-label">Max</span>
+          <span class="lat-value">25.7ms</span>
+        </div>
+      </div>
+      
+      <div class="status-codes">
+        
+          <span class="sc-chip sc-4">429: 50</span>
+        
+      </div>
+    
+      
+    </div>
+  
+  </div>
+
+  <div class="footer">
+    Generated by <a href="#">Sizzle Load Test Tool v1.0</a> · 1/11/2026, 11:49:36 pm
+  </div>
+</body>
+</html>
