@@ -175,6 +175,63 @@ describe('the archive survives a restart', () => {
   });
 });
 
+describe('a unique index while two writers are in flight', () => {
+  const partnerOrder = (externalOrderId: string, orderNumber: string) => ({
+    restaurantId,
+    orderNumber,
+    source: 'SWIGGY',
+    externalOrderId,
+    items: [{ name: 'Chicken 65', price: 330, qty: 1, lineTotal: 330 }],
+    subtotal: 330,
+    taxTotal: 120,
+    grandTotal: 780,
+    placedAt: new Date('2026-10-13T12:00:00Z'),
+  });
+
+  it('lets exactly one of two concurrent identical inserts land', async () => {
+    // A partner that retries sends the same order twice, and both can be mid-flight at once. The check
+    // and the write have to be one step, or both inserts pass the check and the archive ends up holding
+    // the same order twice — which is a duplicate kitchen ticket and a double-deducted recipe.
+    const results = await Promise.allSettled([
+      orders.create(partnerOrder('dup-race-1', 'O-R1')),
+      orders.create(partnerOrder('dup-race-1', 'O-R2')),
+    ]);
+
+    const landed = results.filter((result) => result.status === 'fulfilled');
+    expect(landed).toHaveLength(1);
+    const refused = results.find((result) => result.status === 'rejected') as PromiseRejectedResult | undefined;
+    expect((refused?.reason as { code?: number }).code).toBe(11000);
+    expect(await orders.countDocuments({ restaurantId, externalOrderId: 'dup-race-1' })).toBe(1);
+  });
+
+  it('leaves the stored record alone when an update would break a unique index', async () => {
+    const taken = await orders.create(partnerOrder('dup-keep-1', 'O-K1'));
+    const other = await orders.create(partnerOrder('dup-keep-2', 'O-K2'));
+
+    await expect(orders.updateOne({ _id: other._id }, { externalOrderId: 'dup-keep-1' })).rejects.toMatchObject({
+      code: 11000,
+    });
+
+    // The rejected value must not sit in the working copy, because every later write rewrites the whole
+    // file from memory and would flush it as if it had been accepted.
+    expect((await orders.findById(other._id).lean())?.externalOrderId).toBe('dup-keep-2');
+    await orders.updateOne({ _id: other._id }, { notes: 'an unrelated change afterwards' });
+    const after = await orders.findById(other._id).lean();
+    expect(after).toMatchObject({ externalOrderId: 'dup-keep-2', notes: 'an unrelated change afterwards' });
+    expect(taken).toBeTruthy();
+  });
+
+  it('does the same for findOneAndUpdate, which returns the record it refused to change', async () => {
+    await orders.create(partnerOrder('dup-fua-1', 'O-F1'));
+    const target = await orders.create(partnerOrder('dup-fua-2', 'O-F2'));
+
+    await expect(
+      orders.findOneAndUpdate({ _id: target._id }, { externalOrderId: 'dup-fua-1' }, { lean: true }),
+    ).rejects.toMatchObject({ code: 11000 });
+    expect((await orders.findById(target._id).lean())?.externalOrderId).toBe('dup-fua-2');
+  });
+});
+
 /** The date folders layout.ts uses, checked against Indian wall-clock time. */
 function dayOf(at: Date): string[] {
   const ist = new Date(at.getTime() + 330 * 60_000);

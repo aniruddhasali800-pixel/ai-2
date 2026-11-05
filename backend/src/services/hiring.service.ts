@@ -8,6 +8,9 @@ import { emit, Events } from '../realtime/emit';
 import { hashPassword, publicUser } from '../modules/auth/auth.service';
 import { recordAudit } from './audit.service';
 import { notifyRoles } from './notification.service';
+import { syncOrInviteClerkStaff } from './clerkStaff.service';
+import { verifyApplicantOtp, sendStaffWelcomeEmail } from './emailOtp.service';
+import { env } from '../config/env';
 import { FLOOR_ROLES, ROLES, type Role } from '../types/constants';
 
 /**
@@ -23,6 +26,8 @@ export function publicApplication(app: Record<string, any>) {
   return {
     _id: String(app._id),
     name: app.name,
+    email: app.email ?? null,
+    emailVerified: Boolean(app.emailVerified),
     phone: app.phone,
     role: app.role,
     note: app.note ?? '',
@@ -44,7 +49,10 @@ export function openRolesFor(restaurant: {
   return roles.length ? roles : [...FLOOR_ROLES];
 }
 
-export async function submitApplication(slug: string, input: { name: string; phone: string; role: string; note?: string }) {
+export async function submitApplication(
+  slug: string,
+  input: { name: string; phone: string; role: string; email?: string; verificationCode?: string; note?: string },
+) {
   const restaurant = await RestaurantModel.findOne({ slug: slug.toLowerCase() }).lean();
   if (!restaurant) throw ApiError.notFound('Restaurant not found');
 
@@ -55,10 +63,26 @@ export async function submitApplication(slug: string, input: { name: string; pho
   const digits = phoneDigits(input.phone);
   if (!isUsablePhone(input.phone)) throw ApiError.badRequest('Enter a phone number we can actually reach you on');
 
+  const cleanEmail = input.email?.trim().toLowerCase();
+  let emailVerified = false;
+
+  // Verify applicant email if code was provided
+  if (cleanEmail && input.verificationCode) {
+    await verifyApplicantOtp(cleanEmail, input.verificationCode);
+    emailVerified = true;
+  }
+
   // Somebody with an account does not need to apply; answer as if the form worked either way.
   const known = await findUserByTypedPhone(input.phone);
   if (known.some((u) => String(u.restaurantId) === String(restaurant._id))) {
     return { ok: true, restaurantName: restaurant.name, alreadyStaff: true };
+  }
+
+  if (cleanEmail) {
+    const emailClash = await UserModel.findOne({ email: cleanEmail, restaurantId: restaurant._id }).lean();
+    if (emailClash) {
+      return { ok: true, restaurantName: restaurant.name, alreadyStaff: true };
+    }
   }
 
   const duplicate = await StaffApplicationModel.findOne({ restaurantId: restaurant._id, phoneDigits: digits, status: 'PENDING' }).lean();
@@ -71,6 +95,8 @@ export async function submitApplication(slug: string, input: { name: string; pho
     application = await StaffApplicationModel.create({
       restaurantId: restaurant._id,
       name: input.name,
+      email: cleanEmail,
+      emailVerified,
       phone: input.phone,
       phoneDigits: digits,
       role: input.role,
@@ -87,7 +113,7 @@ export async function submitApplication(slug: string, input: { name: string; pho
   await notifyRoles(String(restaurant._id), ['MANAGER', 'OWNER'], {
     type: 'SYSTEM',
     title: `${application.name} asked to work here`,
-    body: `${application.role.replace(/_/g, ' ')} · ${application.phone}`,
+    body: `${application.role.replace(/_/g, ' ')} · ${application.phone}${cleanEmail ? ` · ${cleanEmail}` : ''}`,
     entityType: 'StaffApplication',
     entityId: String(application._id),
   });
@@ -140,17 +166,53 @@ export async function approveApplication(
     // The number already works here — approval reopens the account instead of a second one.
     user.role = wanted;
     user.status = 'ACTIVE';
+    if (application.email && !user.email) user.email = application.email;
     await user.save();
   } else {
     user = await UserModel.create({
       restaurantId: auth.restaurantId,
       role: wanted,
       name: application.name,
+      email: application.email || undefined,
       phone: application.phone,
-      // An approved hire signs in with a code on their phone, so there is no shared password to
+      // An approved hire signs in with a code on their phone or email, so there is no shared password to
       // hand over. This hash is unguessable and deliberately never shown to anyone.
       passwordHash: await hashPassword(randomToken(24)),
     });
+  }
+
+  // Provision Clerk identity with passwordless email/passkey access if email is present
+  if (application.email) {
+    try {
+      const clerkResult = await syncOrInviteClerkStaff({
+        email: application.email,
+        name: application.name,
+        role: wanted,
+        restaurantId: String(auth.restaurantId),
+      });
+      if (clerkResult.clerkUserId) {
+        user.clerkUserId = clerkResult.clerkUserId;
+        user.invitationStatus = 'ACCEPTED';
+      } else if (clerkResult.invitationId) {
+        user.invitationId = clerkResult.invitationId;
+        user.invitationStatus = 'PENDING';
+      }
+      await user.save();
+    } catch (clerkErr) {
+      console.warn('[hiring] Clerk provisioning warning for applicant:', clerkErr);
+    }
+
+    // Send Welcome Email
+    const restaurant = await RestaurantModel.findById(auth.restaurantId).lean();
+    if (restaurant) {
+      void sendStaffWelcomeEmail({
+        email: application.email,
+        name: user.name,
+        role: wanted,
+        restaurantName: restaurant.name,
+        loginUrl: `${env.PUBLIC_BASE_URL}/login`,
+      }).catch((err) => console.warn('[hiring] Welcome email delivery failed:', err));
+    }
   }
 
   application.status = 'APPROVED';

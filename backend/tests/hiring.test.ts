@@ -187,8 +187,8 @@ describe('one-time sign-in codes', () => {
 
 describe('open roles', () => {
   it('fall back to every floor job rather than an empty form', async () => {
-    expect(openRolesFor({ settings: { openRoles: [] } })).toEqual(['WAITER', 'KITCHEN', 'CASHIER']);
-    expect(openRolesFor({ settings: null })).toEqual(['WAITER', 'KITCHEN', 'CASHIER']);
+    expect(openRolesFor({ settings: { openRoles: [] } })).toEqual(['WAITER', 'KITCHEN', 'COOK', 'CASHIER']);
+    expect(openRolesFor({ settings: null })).toEqual(['WAITER', 'KITCHEN', 'COOK', 'CASHIER']);
     expect(openRolesFor({ settings: { openRoles: ['CASHIER', 'WAITER'] } })).toEqual(['CASHIER', 'WAITER']);
   });
 });

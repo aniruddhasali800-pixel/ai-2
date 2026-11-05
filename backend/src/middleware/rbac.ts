@@ -6,7 +6,7 @@ export function requirePermission(...permissions: Permission[]) {
   return (req: Request, _res: Response, next: NextFunction): void => {
     const auth = req.auth;
     if (!auth) return next(ApiError.unauthorized());
-    const allowed = permissions.every((p) => roleHasPermission(auth.role, p));
+    const allowed = permissions.every((p) => roleHasPermission(auth.role, p, auth.permissions));
     if (!allowed) return next(ApiError.forbidden());
     next();
   };

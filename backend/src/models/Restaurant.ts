@@ -5,6 +5,7 @@ import { FLOOR_ROLES } from '../types/constants';
 const restaurantSchema = new Schema(
   {
     ownerId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+    clerkOwnerId: { type: String, index: true, sparse: true },
     name: { type: String, required: true, trim: true },
     slug: { type: String, required: true, unique: true, lowercase: true, trim: true },
     phone: { type: String, trim: true },

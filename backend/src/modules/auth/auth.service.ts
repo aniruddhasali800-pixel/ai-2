@@ -37,7 +37,19 @@ export function publicUser(user: Record<string, any>) {
     name: user.name,
     email: user.email ?? null,
     phone: user.phone ?? null,
+    clerkUserId: user.clerkUserId ?? null,
     status: user.status,
+    employeeId: user.employeeId ?? null,
+    department: user.department ?? null,
+    dateOfJoining: user.dateOfJoining ?? null,
+    workingDays: user.workingDays ?? [],
+    workingHours: user.workingHours ?? null,
+    shift: user.shift ?? null,
+    invitationStatus: user.invitationStatus ?? 'NONE',
+    invitationId: user.invitationId ?? null,
+    workArea: user.workArea ?? null,
+    assignedTables: user.assignedTables ?? [],
+    permissions: user.permissions ?? [],
     lastLoginAt: user.lastLoginAt ?? null,
     createdAt: user.createdAt,
   };
@@ -90,14 +102,13 @@ export async function registerOwner(input: {
   }
   const clash = await UserModel.findOne({
     $or: [...(input.email ? [{ email: input.email.toLowerCase() }] : []), ...(input.phone ? [{ phone: input.phone }] : [])],
-  }).lean();
-  if (clash) throw ApiError.conflict('An account with those details already exists');
+  });
 
   let slug = slugify(input.restaurantName);
   if (await RestaurantModel.exists({ slug })) slug = `${slug}-${randomToken(3).toLowerCase()}`;
 
   const restaurantId = new Types.ObjectId();
-  const ownerId = new Types.ObjectId();
+  const ownerId = clash ? (clash._id as Types.ObjectId) : new Types.ObjectId();
 
   const restaurant = await RestaurantModel.create({
     _id: restaurantId,
@@ -114,15 +125,31 @@ export async function registerOwner(input: {
     },
   });
 
-  const user = await UserModel.create({
-    _id: ownerId,
-    restaurantId,
-    role: 'OWNER',
-    name: input.name,
-    email: input.email?.toLowerCase(),
-    phone: input.phone,
-    passwordHash: await bcrypt.hash(input.password, BCRYPT_ROUNDS),
-  });
+  const passwordHash = await bcrypt.hash(input.password, BCRYPT_ROUNDS);
+  let user: any;
+
+  if (clash) {
+    // If account already exists with that email/phone, lock in the new credentials and link to the new restaurant
+    clash.restaurantId = restaurantId;
+    clash.role = 'OWNER';
+    clash.name = input.name;
+    if (input.email) clash.email = input.email.toLowerCase();
+    if (input.phone) clash.phone = input.phone;
+    clash.passwordHash = passwordHash;
+    clash.status = 'ACTIVE';
+    await clash.save();
+    user = clash;
+  } else {
+    user = await UserModel.create({
+      _id: ownerId,
+      restaurantId,
+      role: 'OWNER',
+      name: input.name,
+      email: input.email?.toLowerCase(),
+      phone: input.phone,
+      passwordHash,
+    });
+  }
 
   // Create starter tables and starter categories for the new restaurant
   await CategoryModel.insertMany([
@@ -176,6 +203,219 @@ export async function login(identifier: string, password: string) {
 
   const tokens = await issueTokens(user);
   return { user: publicUser(user.toObject()), restaurant, ...tokens };
+}
+
+export async function loginWithClerk(identifier: string, name?: string) {
+  const key = identifier.trim().toLowerCase();
+  let user = await UserModel.findOne({
+    $or: [{ email: key }, { phone: identifier.trim() }],
+  });
+
+  if (!user) {
+    throw ApiError.unauthorized('No account found. Please create a restaurant first.');
+  }
+
+  if (user.status !== 'ACTIVE') throw ApiError.forbidden('This account has been suspended');
+
+  const restaurant = await RestaurantModel.findById(user.restaurantId).lean();
+  user.lastLoginAt = new Date();
+  await user.save();
+
+  const tokens = await issueTokens(user);
+  return { user: publicUser(user.toObject()), restaurant, ...tokens };
+}
+
+export async function syncClerkSession(input: {
+  clerkUserId: string;
+  email?: string;
+  name?: string;
+  phone?: string;
+}) {
+  const { clerkUserId } = input;
+  const email = input.email?.trim().toLowerCase();
+  const phone = input.phone?.trim();
+
+  // Find user by clerkUserId first, or fallback to matching verified email or phone
+  let user = await UserModel.findOne({
+    $or: [
+      { clerkUserId },
+      ...(email ? [{ email }] : []),
+      ...(phone ? [{ phone }] : []),
+    ],
+  });
+
+  if (!user) {
+    return {
+      isNewUser: true,
+      clerkUserId,
+      email: email ?? null,
+      name: input.name ?? null,
+    };
+  }
+
+  // Link clerkUserId to existing user if not already linked
+  if (!user.clerkUserId) {
+    user.clerkUserId = clerkUserId;
+  }
+  if (input.name && (!user.name || user.name === 'Owner')) {
+    user.name = input.name;
+  }
+
+  if (user.status === 'SUSPENDED') {
+    throw ApiError.forbidden('This account has been suspended');
+  }
+
+  // Verify associated restaurant
+  const restaurant = await RestaurantModel.findById(user.restaurantId).lean();
+  if (!restaurant) {
+    return {
+      isNewUser: true,
+      clerkUserId,
+      email: user.email ?? email ?? null,
+      name: user.name ?? input.name ?? null,
+    };
+  }
+
+  user.lastLoginAt = new Date();
+  await user.save();
+
+  const tokens = await issueTokens(user);
+  return {
+    isNewUser: false,
+    user: publicUser(user.toObject()),
+    restaurant,
+    ...tokens,
+  };
+}
+
+export async function registerRestaurant(input: {
+  restaurantName: string;
+  name?: string;
+  email?: string;
+  phone?: string;
+  cuisine?: string;
+  logoUrl?: string;
+  tagline?: string;
+  clerkUserId: string;
+  address?: {
+    line1?: string;
+    city?: string;
+    state?: string;
+    pincode?: string;
+  };
+}) {
+  const { clerkUserId } = input;
+  const email = input.email?.trim().toLowerCase();
+  const phone = input.phone?.trim();
+
+  // Idempotency: if user and restaurant already exist for this clerkUserId or email, return existing
+  let user = await UserModel.findOne({
+    $or: [
+      { clerkUserId },
+      ...(email ? [{ email }] : []),
+    ],
+  });
+
+  if (user && user.restaurantId) {
+    const existingRestaurant = await RestaurantModel.findById(user.restaurantId).lean();
+    if (existingRestaurant) {
+      if (!user.clerkUserId) {
+        user.clerkUserId = clerkUserId;
+        await user.save();
+      }
+      const tokens = await issueTokens(user);
+      return {
+        isNewUser: false,
+        user: publicUser(user.toObject()),
+        restaurant: existingRestaurant,
+        ...tokens,
+      };
+    }
+  }
+
+  let slug = slugify(input.restaurantName);
+  if (await RestaurantModel.exists({ slug })) slug = `${slug}-${randomToken(3).toLowerCase()}`;
+
+  const restaurantId = new Types.ObjectId();
+  const ownerId = user ? (user._id as Types.ObjectId) : new Types.ObjectId();
+
+  const restaurant = await RestaurantModel.create({
+    _id: restaurantId,
+    ownerId,
+    clerkOwnerId: clerkUserId,
+    name: input.restaurantName,
+    slug,
+    email: email || undefined,
+    phone: phone || undefined,
+    address: input.address,
+    branding: {
+      logoUrl: input.logoUrl ?? '',
+      coverUrl: '',
+      tagline: input.tagline ?? '',
+    },
+  });
+
+  if (user) {
+    user.restaurantId = restaurantId;
+    user.role = 'OWNER';
+    user.name = input.name || user.name || 'Owner';
+    if (email) user.email = email;
+    if (phone) user.phone = phone;
+    user.clerkUserId = clerkUserId;
+    user.status = 'ACTIVE';
+    user.lastLoginAt = new Date();
+    await user.save();
+  } else {
+    user = await UserModel.create({
+      _id: ownerId,
+      restaurantId,
+      clerkUserId,
+      role: 'OWNER',
+      name: input.name || 'Owner',
+      email: email || undefined,
+      phone: phone || undefined,
+      status: 'ACTIVE',
+      lastLoginAt: new Date(),
+    });
+  }
+
+  // Create starter tables and starter categories for the new restaurant
+  await CategoryModel.insertMany([
+    { restaurantId: restaurant._id, name: 'Starters', sortOrder: 1, isActive: true },
+    { restaurantId: restaurant._id, name: 'Main Course', sortOrder: 2, isActive: true },
+    { restaurantId: restaurant._id, name: 'Beverages', sortOrder: 3, isActive: true },
+    { restaurantId: restaurant._id, name: 'Desserts', sortOrder: 4, isActive: true },
+  ]);
+
+  const starterTables = [1, 2, 3, 4, 5].map((num) => ({
+    restaurantId: restaurant._id,
+    number: String(num),
+    capacity: 4,
+    section: 'Main',
+    qrToken: randomToken(16),
+  }));
+  await TableModel.insertMany(starterTables);
+
+  await recordAudit({
+    restaurantId: String(restaurant._id),
+    actorId: String(user._id),
+    actorName: user.name,
+    action: 'restaurant.created',
+    entityType: 'Restaurant',
+    entityId: String(restaurant._id),
+    metadata: { name: restaurant.name, cuisine: input.cuisine ?? '', clerkUserId },
+  });
+
+  const tokens = await issueTokens(user);
+  return { isNewUser: false, user: publicUser(user.toObject()), restaurant: restaurant.toObject(), ...tokens };
+}
+
+export async function checkUserExists(identifier: string): Promise<boolean> {
+  const key = identifier.trim().toLowerCase();
+  const exists = await UserModel.exists({
+    $or: [{ email: key }, { phone: identifier.trim() }],
+  });
+  return Boolean(exists);
 }
 
 export async function refreshSession(refreshToken: string) {

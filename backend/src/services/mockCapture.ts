@@ -22,12 +22,14 @@ export async function captureMockPayment(opts: {
     opts.outcome === 'FAILURE'
       ? {
           event: 'payment.failed',
+          event_id: `mockevt_${randomToken(8)}`,
           payload: {
             payment: { entity: { order_id: opts.providerOrderId, error_description: opts.reason ?? 'Payment declined by bank' } },
           },
         }
       : {
           event: 'payment.captured',
+          event_id: `mockevt_${randomToken(8)}`,
           payload: {
             payment: { entity: { id: `mockpay_${randomToken(8)}`, order_id: opts.providerOrderId, status: 'captured' } },
           },

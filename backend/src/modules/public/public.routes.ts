@@ -28,6 +28,7 @@ import {
 } from '../../services/customerApp.service';
 import { checkAvailability, createBooking } from '../../services/booking.service';
 import { openRolesFor, submitApplication } from '../../services/hiring.service';
+import { sendApplicantOtp } from '../../services/emailOtp.service';
 import { publicBillView, createBill } from '../../services/billing.service';
 import { notifyRoles } from '../../services/notification.service';
 import { FLOOR_ROLES, REQUEST_TYPES } from '../../types/constants';
@@ -581,6 +582,25 @@ publicRouter.get(
 );
 
 /**
+ * Send an OTP code to verify a job seeker's email address.
+ */
+publicRouter.post(
+  '/applications/:slug/send-otp',
+  publicWriteLimiter,
+  validate({
+    body: z.object({
+      email: z.string().email('Please enter a valid email address'),
+    }),
+  }),
+  asyncHandler(async (req, res) => {
+    const restaurant = await RestaurantModel.findOne({ slug: req.params.slug.toLowerCase() }).lean();
+    if (!restaurant) throw ApiError.notFound('Restaurant not found');
+    const result = await sendApplicantOtp(req.body.email, restaurant.name);
+    res.json(result);
+  }),
+);
+
+/**
  * A walk-in asks for a shift. No account, no session, nothing trusted — the restaurant comes
  * from the slug in the URL and the answer deliberately says nothing about whether this phone
  * already works here.
@@ -592,6 +612,8 @@ publicRouter.post(
     body: z.object({
       name: z.string().min(2).max(80),
       phone: z.string().min(8).max(20),
+      email: z.string().email().optional(),
+      verificationCode: z.string().min(4).max(10).optional(),
       role: z.enum(FLOOR_ROLES),
       note: z.string().max(300).optional(),
     }),

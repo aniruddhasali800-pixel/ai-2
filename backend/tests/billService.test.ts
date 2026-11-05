@@ -353,7 +353,7 @@ describe('the bill service talking back', () => {
     const replayBody = capturedBody;
     expect(await handleGatewayWebhook('UPI_DIRECT', replayBody, hmacHex(SECRET, replayBody))).toMatchObject({
       ok: true,
-      message: 'Already settled',
+      message: 'Duplicate delivery ignored',
     });
     expect(await PaymentModel.countDocuments({ billId: bill._id, status: 'SUCCEEDED' })).toBe(1);
 

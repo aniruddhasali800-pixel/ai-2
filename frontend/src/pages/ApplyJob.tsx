@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Briefcase, CheckCircle2, ChefHat, CreditCard, ConciergeBell, PhoneCall } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Briefcase, Check, CheckCircle2, ChefHat, CreditCard, ConciergeBell, Mail, PhoneCall } from 'lucide-react';
 import { Brand } from '../layouts/AppShell';
 import { Button, Field, Input, Spinner, Textarea } from '../components/ui';
 import { errMsg, http } from '../lib/api';
@@ -21,14 +21,18 @@ interface Hiring {
 /**
  * The job form behind the staff sticker. Nobody here has an account yet, so this is the only
  * screen a walk-in ever sees, and it asks for four things. Accepting it is what creates the
- * account — and the phone number typed here becomes the way they sign in from that day on.
+ * account — and the phone number or email typed here becomes the way they sign in from that day on.
  */
 export function ApplyJob() {
   const { slug = '' } = useParams();
   const [hiring, setHiring] = useState<Hiring | null>(null);
   const [failed, setFailed] = useState(false);
   const [role, setRole] = useState<Role | null>(null);
-  const [form, setForm] = useState({ name: '', phone: '', note: '' });
+  const [form, setForm] = useState({ name: '', phone: '', email: '', note: '' });
+  const [otpCode, setOtpCode] = useState('');
+  const [otpSent, setOtpSent] = useState(false);
+  const [demoCode, setDemoCode] = useState<string | null>(null);
+  const [sendingOtp, setSendingOtp] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState<{ role: Role; already?: boolean } | null>(null);
@@ -50,6 +54,29 @@ export function ApplyJob() {
     };
   }, [slug]);
 
+  async function handleSendEmailOtp() {
+    if (!form.email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
+      setError('Please enter a valid email address first');
+      return;
+    }
+    setSendingOtp(true);
+    setError(null);
+    try {
+      const { data } = await http.post<{ ok: boolean; demoCode?: string }>(`/public/applications/${slug}/send-otp`, {
+        email: form.email.trim(),
+      });
+      setOtpSent(true);
+      if (data.demoCode) {
+        setDemoCode(data.demoCode);
+        setOtpCode(data.demoCode);
+      }
+    } catch (err) {
+      setError(errMsg(err, 'Could not send verification email right now'));
+    } finally {
+      setSendingOtp(false);
+    }
+  }
+
   async function submit(e: FormEvent) {
     e.preventDefault();
     if (!role) {
@@ -62,6 +89,8 @@ export function ApplyJob() {
       const { data } = await http.post<{ alreadyStaff?: boolean; alreadyApplied?: boolean }>(`/public/applications/${slug}`, {
         name: form.name.trim(),
         phone: form.phone.trim(),
+        email: form.email.trim() || undefined,
+        verificationCode: otpCode.trim() || undefined,
         role,
         note: form.note.trim() || undefined,
       });
@@ -162,6 +191,50 @@ export function ApplyJob() {
               <Field label="Your name" required>
                 <Input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Ravi Kumar" autoComplete="name" required />
               </Field>
+              <Field label="Email Address" hint="For official account creation, welcome confirmation, and passwordless login.">
+                <div className="flex gap-2">
+                  <Input
+                    value={form.email}
+                    onChange={(e) => {
+                      setForm((f) => ({ ...f, email: e.target.value }));
+                      setOtpSent(false);
+                      setDemoCode(null);
+                    }}
+                    inputMode="email"
+                    placeholder="ravi@gmail.com"
+                    className="flex-1"
+                  />
+                  {form.email && !otpSent && (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      loading={sendingOtp}
+                      onClick={handleSendEmailOtp}
+                    >
+                      Verify Email
+                    </Button>
+                  )}
+                </div>
+              </Field>
+
+              {otpSent && (
+                <div className="rounded-xl border border-ember-200 bg-amber-50/60 p-3 space-y-2">
+                  <Field
+                    label={`Enter 6-digit verification code`}
+                    hint={demoCode ? `Demo code: ${demoCode}` : `Code sent to ${form.email}. Enter it to confirm your email.`}
+                  >
+                    <Input
+                      value={otpCode}
+                      onChange={(e) => setOtpCode(e.target.value)}
+                      inputMode="numeric"
+                      placeholder="123456"
+                      autoFocus
+                    />
+                  </Field>
+                </div>
+              )}
+
               <Field label="Phone number" required hint="Codes to sign in go here, so keep it reachable.">
                 <Input value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} inputMode="tel" autoComplete="tel" placeholder="98765 43210" required />
               </Field>

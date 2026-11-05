@@ -12,6 +12,8 @@ const staffApplicationSchema = new Schema(
   {
     restaurantId: { type: Schema.Types.ObjectId, ref: 'Restaurant', required: true, index: true },
     name: { type: String, required: true, trim: true },
+    email: { type: String, trim: true, lowercase: true },
+    emailVerified: { type: Boolean, default: false },
     /** Typed as it arrives, so the queue shows what the person actually gave us. */
     phone: { type: String, required: true, trim: true },
     /** Digits only — the key we match on when they later ask for a sign-in code. */

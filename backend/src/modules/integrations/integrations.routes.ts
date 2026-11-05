@@ -5,6 +5,8 @@ import { requirePermission } from '../../middleware/rbac';
 import { validate } from '../../middleware/validate';
 import { ApiError } from '../../utils/httpError';
 import { env } from '../../config/env';
+import { webhookLimiter } from '../../middleware/rateLimit';
+import { rejectUntrustedWebhooks } from '../../middleware/webhookTrust';
 import { hmacHex } from '../../utils/tokens';
 import { OrderModel } from '../../models/Order';
 import { DELIVERY_SOURCES } from '../../types/constants';
@@ -178,6 +180,8 @@ export const deliveryWebhookRouter = Router();
 // Raw body is required to verify the partner HMAC signature.
 deliveryWebhookRouter.post(
   '/:provider',
+  webhookLimiter,
+  rejectUntrustedWebhooks('Delivery'),
   raw({ type: () => true, limit: '1mb' }),
   async (req, res) => {
     const rawBody = Buffer.isBuffer(req.body)

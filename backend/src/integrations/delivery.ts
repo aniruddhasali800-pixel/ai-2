@@ -1,5 +1,5 @@
-import { env } from '../config/env';
-import { hmacHex } from '../utils/tokens';
+import { env, webhookSigningKeys, type WebhookSecretName } from '../config/env';
+import { hmacHex, safeEqual } from '../utils/tokens';
 import { createOrder } from '../services/order.service';
 import { OrderModel } from '../models';
 import type { OrderSource, OrderStatus } from '../types/constants';
@@ -73,10 +73,14 @@ function normalizeItems(raw: unknown, priceKeys: string[], qtyKeys: string[], na
     .filter((item): item is NormalizedDeliveryItem => item !== null);
 }
 
-function verifyWithSecret(secret: string | null, rawBody: string, signature: string | undefined): boolean {
-  if (!secret) return false;
+/**
+ * Whether one body was signed with any key this provider is currently allowed to use — its live secret
+ * plus, only during a rotation, the one being retired. Each digest is compared with `safeEqual`, so a
+ * miss costs the same time however many keys are on the list.
+ */
+function verifyWithSecret(name: WebhookSecretName, rawBody: string, signature: string | undefined): boolean {
   if (!signature) return false;
-  return hmacHex(secret, rawBody) === signature;
+  return webhookSigningKeys(name).some((secret) => secret && safeEqual(hmacHex(secret, rawBody), signature));
 }
 
 const swiggyAdapter: DeliveryAdapter = {
@@ -84,7 +88,7 @@ const swiggyAdapter: DeliveryAdapter = {
   label: 'Swiggy',
   signatureHeader: 'x-swiggy-signature',
   webhookSecret: env.SWIGGY_WEBHOOK_SECRET,
-  verifyWebhook: (rawBody, signature) => verifyWithSecret(env.SWIGGY_WEBHOOK_SECRET, rawBody, signature),
+  verifyWebhook: (rawBody, signature) => verifyWithSecret('SWIGGY_WEBHOOK_SECRET', rawBody, signature),
   parseWebhook(payload) {
     const body = unwrap(payload);
     const customer = (pick(body, ['customer', 'customer_details']) ?? {}) as Record<string, unknown>;
@@ -118,7 +122,7 @@ const zomatoAdapter: DeliveryAdapter = {
   label: 'Zomato',
   signatureHeader: 'x-zomato-signature',
   webhookSecret: env.ZOMATO_WEBHOOK_SECRET,
-  verifyWebhook: (rawBody, signature) => verifyWithSecret(env.ZOMATO_WEBHOOK_SECRET, rawBody, signature),
+  verifyWebhook: (rawBody, signature) => verifyWithSecret('ZOMATO_WEBHOOK_SECRET', rawBody, signature),
   parseWebhook(payload) {
     const body = unwrap(payload);
     const customer = (pick(body, ['customer', 'customer_details', 'user']) ?? {}) as Record<string, unknown>;
@@ -152,7 +156,7 @@ const websiteAdapter: DeliveryAdapter = {
   label: 'Website',
   signatureHeader: 'x-website-signature',
   webhookSecret: env.WEBSITE_WEBHOOK_SECRET,
-  verifyWebhook: (rawBody, signature) => verifyWithSecret(env.WEBSITE_WEBHOOK_SECRET, rawBody, signature),
+  verifyWebhook: (rawBody, signature) => verifyWithSecret('WEBSITE_WEBHOOK_SECRET', rawBody, signature),
   parseWebhook(payload) {
     const body = unwrap(payload);
     const customer = (pick(body, ['customer', 'customer_details']) ?? {}) as Record<string, unknown>;
@@ -274,19 +278,34 @@ export async function ingestDeliveryOrder(
     return { order: existing, duplicate: true };
   }
 
-  const order = await createOrder({
-    restaurantId,
-    source: normalized.provider,
-    customerName: normalized.customerName,
-    customerPhone: normalized.customerPhone,
-    customerAddress: normalized.customerAddress ?? '',
-    customerCity: normalized.customerCity ?? '',
-    notes: normalized.notes ?? '',
-    externalItems: normalized.items,
-    externalOrderId: normalized.externalOrderId,
-    integrationMeta: { channel: 'partner-webhook', paymentState: normalized.paymentState, ingestedAt: new Date().toISOString() },
-    placedAt: normalized.placedAt ?? new Date(),
-    status: opts.autoAccept ? 'ACCEPTED' : undefined,
-  });
-  return { order, duplicate: false };
+  try {
+    const order = await createOrder({
+      restaurantId,
+      source: normalized.provider,
+      customerName: normalized.customerName,
+      customerPhone: normalized.customerPhone,
+      customerAddress: normalized.customerAddress ?? '',
+      customerCity: normalized.customerCity ?? '',
+      notes: normalized.notes ?? '',
+      externalItems: normalized.items,
+      externalOrderId: normalized.externalOrderId,
+      integrationMeta: { channel: 'partner-webhook', paymentState: normalized.paymentState, ingestedAt: new Date().toISOString() },
+      placedAt: normalized.placedAt ?? new Date(),
+      status: opts.autoAccept ? 'ACCEPTED' : undefined,
+    });
+    return { order, duplicate: false };
+  } catch (error) {
+    // Two deliveries of one partner order can be in flight at the same moment, and the read above cannot
+    // see a record that has not landed yet. The unique index is what actually stops the second, so the
+    // loser reads back the order that won and answers as a duplicate rather than failing the delivery —
+    // a partner retry then gets the same order id it got the first time.
+    if ((error as { code?: number }).code !== 11000) throw error;
+    const winner = await OrderModel.findOne({
+      restaurantId,
+      source: normalized.provider,
+      externalOrderId: normalized.externalOrderId,
+    }).lean();
+    if (!winner) throw error;
+    return { order: winner, duplicate: true };
+  }
 }

@@ -1,5 +1,6 @@
 import { lazy, Suspense } from 'react';
-import { Route, Routes } from 'react-router-dom';
+import { AuthenticateWithRedirectCallback } from '@clerk/clerk-react';
+import { Navigate, Route, Routes } from 'react-router-dom';
 import { LoginPage } from './pages/Login';
 import { StaffLayout } from './layouts/StaffLayout';
 import { KdsLayout } from './layouts/KdsLayout';
@@ -57,6 +58,17 @@ export function App() {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route path="/create-restaurant" element={<Navigate to="/register" replace />} />
+        <Route path="/dashboard" element={<Navigate to="/app" replace />} />
+        <Route
+          path="/sso-callback"
+          element={
+            <AuthenticateWithRedirectCallback
+              signInForceRedirectUrl="/login"
+              signUpForceRedirectUrl="/login"
+            />
+          }
+        />
 
         {/* One installable app for the whole team; the account decides the screen */}
         <Route path="/staff.html" element={<StaffInstall />} />

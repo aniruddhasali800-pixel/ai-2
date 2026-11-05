@@ -1,5 +1,6 @@
-import { useState, type FormEvent } from 'react';
-import { Link, Navigate, useNavigate } from 'react-router-dom';
+import { useEffect, useState, type FormEvent } from 'react';
+import { useUser } from '@clerk/clerk-react';
+import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft,
   ArrowRight,
@@ -16,14 +17,18 @@ import { Brand } from '../layouts/AppShell';
 import { Button, Field, Input } from '../components/ui';
 import { ImagePicker } from '../components/ImagePicker';
 import { useAuth } from '../store/auth';
-import { connectRealtime } from '../lib/socket';
 import { errMsg, mediaUrl } from '../lib/api';
 
 export function RegisterPage() {
-  const { user, register } = useAuth();
+  const { user, registerRestaurant } = useAuth();
+  const { isLoaded: isClerkLoaded, user: clerkUser } = useUser();
   const navigate = useNavigate();
 
   const [step, setStep] = useState<1 | 2>(1);
+
+  const [searchParams] = useSearchParams();
+  const initialEmail = searchParams.get('email') || '';
+  const initialName = searchParams.get('name') || '';
 
   const [form, setForm] = useState({
     restaurantName: '',
@@ -36,16 +41,46 @@ export function RegisterPage() {
       state: '',
       pincode: '',
     },
-    name: '',
-    email: '',
+    name: initialName,
+    email: initialEmail,
     phone: '',
-    password: '',
   });
+
+  // Prefill from Clerk user if signed in
+  useEffect(() => {
+    if (isClerkLoaded && clerkUser) {
+      const clerkEmail =
+        clerkUser.primaryEmailAddress?.emailAddress ||
+        clerkUser.emailAddresses?.[0]?.emailAddress ||
+        '';
+      const clerkName =
+        clerkUser.fullName ||
+        [clerkUser.firstName, clerkUser.lastName].filter(Boolean).join(' ') ||
+        '';
+      const clerkPhone =
+        clerkUser.primaryPhoneNumber?.phoneNumber ||
+        clerkUser.phoneNumbers?.[0]?.phoneNumber ||
+        '';
+
+      setForm((f) => ({
+        ...f,
+        name: f.name || clerkName,
+        email: f.email || clerkEmail,
+        phone: f.phone || clerkPhone,
+      }));
+    }
+  }, [isClerkLoaded, clerkUser]);
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // If already authenticated with a restaurant, go directly to owner dashboard
   if (user) return <Navigate to="/app" replace />;
+
+  // If Clerk finished loading and no Clerk session exists, go to login to authenticate first
+  if (isClerkLoaded && !clerkUser) {
+    return <Navigate to="/login" replace />;
+  }
 
   const setField = (k: keyof typeof form) => (e: { target: { value: string } }) => {
     setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -70,19 +105,21 @@ export function RegisterPage() {
     setBusy(true);
     setError(null);
 
-    if (!form.email.trim() && !form.phone.trim()) {
-      setError('Please provide either an email or a phone number to sign in with.');
+    const clerkId = clerkUser?.id;
+    if (!clerkId) {
+      setError('Clerk session expired. Please sign in again.');
       setBusy(false);
+      navigate('/login');
       return;
     }
 
     try {
-      await register({
+      await registerRestaurant({
         restaurantName: form.restaurantName.trim(),
-        name: form.name.trim(),
-        email: form.email.trim() || undefined,
+        clerkUserId: clerkId,
+        name: form.name.trim() || clerkUser.fullName || 'Owner',
+        email: form.email.trim() || clerkUser.primaryEmailAddress?.emailAddress || undefined,
         phone: form.phone.trim() || undefined,
-        password: form.password,
         cuisine: form.cuisine.trim() || undefined,
         tagline: form.tagline.trim() || undefined,
         logoUrl: form.logoUrl || undefined,
@@ -94,7 +131,7 @@ export function RegisterPage() {
         },
       });
 
-      connectRealtime(useAuth.getState().accessToken);
+      // Immediately launch the owner dashboard without asking to log in again
       navigate('/app', { replace: true });
     } catch (err) {
       setError(errMsg(err, 'Could not create the restaurant'));
@@ -114,7 +151,7 @@ export function RegisterPage() {
         <div className="mt-6 flex items-center justify-center gap-3">
           <div
             className={`flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold transition-all ${
-              step === 1 ? 'bg-ember-500 text-white shadow-sm' : 'bg-white text-ink-600 ring-1 ring-ink-200'
+              step === 1 ? 'bg-ember-500 text-white shadow-xs' : 'bg-white text-ink-600 ring-1 ring-ink-200'
             }`}
           >
             <Store size={14} />
@@ -123,15 +160,15 @@ export function RegisterPage() {
           <div className="h-0.5 w-6 bg-ink-200" />
           <div
             className={`flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold transition-all ${
-              step === 2 ? 'bg-ember-500 text-white shadow-sm' : 'bg-white text-ink-600 ring-1 ring-ink-200'
+              step === 2 ? 'bg-ember-500 text-white shadow-xs' : 'bg-white text-ink-600 ring-1 ring-ink-200'
             }`}
           >
             <User size={14} />
-            <span>2. Owner Login</span>
+            <span>2. Owner Confirmation</span>
           </div>
         </div>
 
-        <div className="card mt-4 overflow-hidden border border-ink-200/80 bg-white p-6 shadow-sm sm:p-8">
+        <div className="card mt-4 overflow-hidden border border-ink-200/80 bg-white p-6 shadow-xs sm:p-8">
           {step === 1 ? (
             <div>
               <div className="flex items-start justify-between">
@@ -152,7 +189,7 @@ export function RegisterPage() {
               <div className="mt-5 rounded-xl border border-ink-200/70 bg-gradient-to-r from-ink-50 to-white p-4">
                 <span className="text-[11px] font-bold uppercase tracking-wider text-ink-400">Live Brand Preview</span>
                 <div className="mt-2.5 flex items-center gap-3.5">
-                  <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-xl border border-ink-200 bg-white shadow-xs">
+                  <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-xl border border-ink-200 bg-white shadow-2xs">
                     {form.logoUrl ? (
                       <img src={mediaUrl(form.logoUrl)} alt="Logo" className="h-full w-full object-cover" />
                     ) : (
@@ -264,7 +301,7 @@ export function RegisterPage() {
                     </Button>
                   </Link>
                   <Button type="submit" variant="primary" className="grow" icon={<ArrowRight size={15} />}>
-                    Continue: Owner Account
+                    Continue: Owner Confirmation
                   </Button>
                 </div>
               </form>
@@ -274,10 +311,10 @@ export function RegisterPage() {
               <div className="flex items-start justify-between">
                 <div>
                   <h1 className="font-display text-2xl font-800 tracking-tight text-ink-900">
-                    Owner credentials
+                    Confirm owner account
                   </h1>
                   <p className="mt-1 text-[13.5px] text-ink-500">
-                    Create the master administrator account for <span className="font-semibold text-ink-800">{form.restaurantName}</span>.
+                    Administrator details for <span className="font-semibold text-ink-800">{form.restaurantName}</span>.
                   </p>
                 </div>
                 <span className="grid h-10 w-10 place-items-center rounded-xl bg-ink-900 text-white">
@@ -285,14 +322,14 @@ export function RegisterPage() {
                 </span>
               </div>
 
-              {/* Security & Role clarity badge */}
+              {/* Clerk Verified Identity Badge */}
               <div className="mt-4 rounded-xl border border-leaf-200 bg-leaf-50/70 p-3 text-leaf-900">
                 <div className="flex items-center gap-2 font-semibold text-xs text-leaf-800">
                   <CheckCircle2 size={15} className="text-leaf-600 shrink-0" />
-                  <span>Strict Owner &amp; Customer Separation</span>
+                  <span>Authenticated via Clerk (Single Sign-On)</span>
                 </div>
                 <p className="mt-1 text-[12px] leading-relaxed text-leaf-700">
-                  This login gives you full access to the <strong>Owner Back-Office Dashboard (/app)</strong>. Customers who scan your QR codes only get the digital menu and cannot access your management console.
+                  Your identity is secured by Clerk. You do not need to create or remember a separate password. You can sign in anytime using your Google, Apple, or email credentials.
                 </p>
               </div>
 
@@ -308,7 +345,7 @@ export function RegisterPage() {
                 </Field>
 
                 <div className="grid gap-3.5 sm:grid-cols-2">
-                  <Field label="Email address" hint="For login & receipts.">
+                  <Field label="Email address (Clerk Verified)" hint="Used for receipts & notifications.">
                     <Input
                       type="email"
                       value={form.email}
@@ -316,7 +353,7 @@ export function RegisterPage() {
                       placeholder="owner@restaurant.in"
                     />
                   </Field>
-                  <Field label="Phone number" hint="For quick sign-in.">
+                  <Field label="Phone number" hint="Optional contact number.">
                     <Input
                       value={form.phone}
                       onChange={setField('phone')}
@@ -324,17 +361,6 @@ export function RegisterPage() {
                     />
                   </Field>
                 </div>
-
-                <Field label="Master Password" required hint="At least 8 characters. Secures your dashboard.">
-                  <Input
-                    type="password"
-                    value={form.password}
-                    onChange={setField('password')}
-                    placeholder="••••••••••••"
-                    required
-                    minLength={8}
-                  />
-                </Field>
 
                 {error && (
                   <p className="rounded-lg bg-red-50 px-3 py-2 text-[13px] text-red-700 ring-1 ring-red-200">

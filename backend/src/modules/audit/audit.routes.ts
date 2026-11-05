@@ -6,6 +6,7 @@ import { validate } from '../../middleware/validate';
 import { requireAuth } from '../../middleware/auth';
 import { requirePermission } from '../../middleware/rbac';
 import { queryOf } from '../../utils/query';
+import { listWebhookEventsForRestaurant } from '../../services/webhookEvent.service';
 
 export const auditRouter = Router();
 
@@ -22,6 +23,13 @@ const listQuerySchema = z.object({
 });
 
 type ListQuery = z.infer<typeof listQuerySchema>;
+
+const webhookQuerySchema = z.object({
+  provider: z.enum(['MOCK', 'RAZORPAY', 'SWIGGY', 'ZOMATO', 'WEBSITE']).optional(),
+  limit: z.coerce.number().int().min(1).max(200).optional(),
+});
+
+type WebhookQuery = z.infer<typeof webhookQuerySchema>;
 
 auditRouter.get(
   '/',
@@ -50,5 +58,19 @@ auditRouter.get(
     ]);
 
     res.json({ data, total, actions: (actions as string[]).sort(), page, limit });
+  }),
+);
+
+auditRouter.get(
+  '/webhooks',
+  requirePermission('audit:read'),
+  validate({ query: webhookQuerySchema }),
+  asyncHandler(async (req, res) => {
+    const q = queryOf<WebhookQuery>(req);
+    const data = await listWebhookEventsForRestaurant(req.auth!.restaurantId, {
+      provider: q.provider,
+      limit: q.limit ?? 50,
+    });
+    res.json({ data });
   }),
 );

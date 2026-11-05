@@ -1,4 +1,4 @@
-export type Role = 'OWNER' | 'MANAGER' | 'CASHIER' | 'KITCHEN' | 'WAITER';
+export type Role = 'OWNER' | 'MANAGER' | 'CASHIER' | 'KITCHEN' | 'COOK' | 'WAITER';
 export type OrderStatus = 'PLACED' | 'ACCEPTED' | 'PREPARING' | 'READY' | 'SERVED' | 'COMPLETED' | 'CANCELLED';
 export type OrderSource =
   | 'DINE_IN_QR'
@@ -91,7 +91,19 @@ export interface User {
   name: string;
   email: string | null;
   phone: string | null;
-  status: 'ACTIVE' | 'SUSPENDED';
+  clerkUserId?: string | null;
+  status: 'ACTIVE' | 'PENDING' | 'INACTIVE' | 'SUSPENDED';
+  employeeId?: string | null;
+  department?: string | null;
+  dateOfJoining?: string | null;
+  workingDays?: string[];
+  workingHours?: string | null;
+  shift?: string | null;
+  invitationStatus?: 'NONE' | 'PENDING' | 'ACCEPTED' | 'EXPIRED';
+  invitationId?: string | null;
+  workArea?: string | null;
+  assignedTables?: string[];
+  permissions?: string[];
   lastLoginAt: string | null;
   createdAt: string;
 }
@@ -100,6 +112,8 @@ export interface User {
 export interface StaffApplication {
   _id: string;
   name: string;
+  email?: string | null;
+  emailVerified?: boolean;
   phone: string;
   role: Role;
   note: string;

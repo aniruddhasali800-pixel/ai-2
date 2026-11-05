@@ -6,11 +6,12 @@ export const JOB_META: Record<Role, { label: string; blurb: string }> = {
   MANAGER: { label: 'Manager', blurb: 'Runs the floor, the menu and the reports' },
   WAITER: { label: 'Waiter', blurb: 'Seat guests, carry orders, call the bill from the table' },
   KITCHEN: { label: 'Kitchen', blurb: 'Tickets fire by course at the pass' },
+  COOK: { label: 'Cook', blurb: 'Station orders, prep and live tickets' },
   CASHIER: { label: 'Cashier', blurb: 'Bills, UPI, cards and the change drawer' },
 };
 
 /** The jobs a stranger can ask for. Manager and owner are never self-requested. */
-export const FLOOR_JOBS: Role[] = ['WAITER', 'KITCHEN', 'CASHIER'];
+export const FLOOR_JOBS: Role[] = ['WAITER', 'KITCHEN', 'COOK', 'CASHIER'];
 
 export function jobLabel(role?: string | null): string {
   return (role && JOB_META[role as Role]?.label) || (role ?? '').replace(/_/g, ' ');

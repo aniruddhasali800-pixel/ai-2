@@ -1,5 +1,6 @@
 import { RestaurantModel } from '../../models/Restaurant';
 import { getAdapter, ingestDeliveryOrder } from '../../integrations/delivery';
+import { claimWebhookDelivery, recordWebhookOutcome, releaseWebhookClaim } from '../../services/webhookEvent.service';
 
 export interface DeliveryWebhookResult {
   ok: boolean;
@@ -63,9 +64,37 @@ export async function handleDeliveryWebhook(opts: {
     return { ok: false, status: 404, message: 'Restaurant not found for this webhook' };
   }
 
-  const result = await ingestDeliveryOrder(restaurantId, normalized, {
-    autoAccept: Boolean(restaurant.settings?.autoAcceptOrders),
-  });
+  // A delivery that reached this line was signed and names a real restaurant, so it is written down
+  // before it becomes an order. Ingest is already idempotent on the partner's own order id, so a repeat
+  // is recorded and still answered with the order it first created rather than being refused outright —
+  // a partner retry deserves the same body it got the first time.
+  const claim = await claimWebhookDelivery(
+    {
+      provider: adapter.provider,
+      senderEventId: typeof payload.event_id === 'string' ? payload.event_id : undefined,
+      event: typeof payload.event === 'string' ? payload.event : '',
+      reference: normalized.externalOrderId,
+      restaurantId,
+    },
+    opts.rawBody,
+  );
+
+  let result: Awaited<ReturnType<typeof ingestDeliveryOrder>>;
+  try {
+    result = await ingestDeliveryOrder(restaurantId, normalized, {
+      autoAccept: Boolean(restaurant.settings?.autoAcceptOrders),
+    });
+  } catch (error) {
+    // The order did not happen, so the delivery must not stay claimed: the partner is going to send it
+    // again, and a standing claim is how a real order would be refused forever.
+    await releaseWebhookClaim(claim, adapter.provider);
+    throw error;
+  }
+  // The row the first delivery wrote already says what happened. A repeat is answered the same way but
+  // never rewrites that history.
+  if (!claim.duplicate) {
+    await recordWebhookOutcome(claim, adapter.provider, result.duplicate ? 'duplicate' : 'accepted');
+  }
 
   if (result.duplicate) {
     return {

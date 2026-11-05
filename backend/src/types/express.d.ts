@@ -8,6 +8,8 @@ declare global {
         restaurantId: string;
         role: Role;
         name: string;
+        clerkUserId?: string;
+        permissions?: string[];
       };
     }
   }

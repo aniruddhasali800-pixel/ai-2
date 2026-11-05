@@ -1,8 +1,8 @@
-export const ROLES = ['OWNER', 'MANAGER', 'CASHIER', 'KITCHEN', 'WAITER'] as const;
+export const ROLES = ['OWNER', 'MANAGER', 'CASHIER', 'KITCHEN', 'COOK', 'WAITER'] as const;
 export type Role = (typeof ROLES)[number];
 
 /** Jobs a stranger may ask for on the sticker, and jobs that need a manager to exist already. */
-export const FLOOR_ROLES = ['WAITER', 'KITCHEN', 'CASHIER'] as const;
+export const FLOOR_ROLES = ['WAITER', 'KITCHEN', 'COOK', 'CASHIER'] as const;
 /** Nobody hands these out but the owner, so a manager-approved hire can never grant authority. */
 export const OWNER_GRANT_ROLES: Role[] = ['MANAGER'];
 
@@ -158,6 +158,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'payments:read', 'payments:write', 'tables:read', 'bookings:read', 'requests:read', 'requests:write',
   ],
   KITCHEN: ['menu:read', 'orders:read', 'kitchen:operate'],
+  COOK: ['menu:read', 'orders:read', 'kitchen:operate'],
   WAITER: [
     'menu:read', 'orders:read', 'orders:write', 'orders:status', 'tables:read', 'tables:write',
     'bookings:read', 'bookings:write', 'requests:read', 'requests:write',
@@ -166,7 +167,8 @@ export const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   ],
 };
 
-export function roleHasPermission(role: Role, permission: Permission): boolean {
+export function roleHasPermission(role: Role, permission: Permission, customPermissions?: string[]): boolean {
+  if (customPermissions?.includes(permission)) return true;
   return ROLE_PERMISSIONS[role]?.includes(permission) ?? false;
 }
 

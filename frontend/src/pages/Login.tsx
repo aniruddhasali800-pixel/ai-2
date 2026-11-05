@@ -1,23 +1,76 @@
-import { useCallback, useState, type FormEvent } from 'react';
-import { Link, Navigate, useNavigate } from 'react-router-dom';
-import { ArrowRight, MessageSquareText, ShieldCheck, Store } from 'lucide-react';
+import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { SignIn, useUser, useSignIn } from '@clerk/clerk-react';
+import { Navigate, useNavigate } from 'react-router-dom';
+import {
+  Flame,
+  Fingerprint,
+  KeyRound,
+  Mail,
+  MessageSquareText,
+  ShieldCheck,
+  Smartphone,
+  Sparkles,
+} from 'lucide-react';
 import { Brand } from '../layouts/AppShell';
-import { Button, Field, Input } from '../components/ui';
+import { Button, Field, Input, Spinner } from '../components/ui';
 import { useAuth } from '../store/auth';
 import { connectRealtime } from '../lib/socket';
 import { errMsg, http } from '../lib/api';
 import type { Role } from '../lib/types';
 
-export function LoginPage() {
-  const { user, login } = useAuth();
-  const navigate = useNavigate();
-  const [identifier, setIdentifier] = useState('');
-  const [password, setPassword] = useState('');
-  const [phoneDoor, setPhoneDoor] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+/** Maps a staff role to their home route — used by every post-login redirect. */
+export function homeFor(role: Role): string {
+  switch (role) {
+    case 'KITCHEN':
+    case 'COOK':
+      return '/kds';
+    case 'WAITER':
+      return '/floor';
+    case 'CASHIER':
+      return '/pos';
+    default:
+      return '/app';
+  }
+}
 
-  /** After a successful login, open the right station screen. */
+export function LoginPage() {
+  const { user, syncClerk } = useAuth();
+  const { isLoaded: isUserLoaded, isSignedIn: isClerkSignedIn, user: clerkUser } = useUser();
+  const { isLoaded: isSignInLoaded, signIn, setActive } = useSignIn();
+  const navigate = useNavigate();
+
+  const [staffDoor, setStaffDoor] = useState(false);
+  const [doorTab, setDoorTab] = useState<'email' | 'phone' | 'passkey'>('email');
+  const [passkeyLoading, setPasskeyLoading] = useState(false);
+  const [passkeyError, setPasskeyError] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
+
+  async function handlePasskeySignIn() {
+    if (!isSignInLoaded || !signIn) return;
+    setPasskeyLoading(true);
+    setPasskeyError(null);
+    try {
+      if (typeof (signIn as any).authenticateWithPasskey === 'function') {
+        const response = await (signIn as any).authenticateWithPasskey();
+        if (response?.status === 'complete' && response.createdSessionId) {
+          if (setActive) {
+            await setActive({ session: response.createdSessionId });
+          }
+        }
+      } else {
+        setPasskeyError('Passkeys are not configured in your Clerk dashboard yet.');
+      }
+    } catch (err: any) {
+      if (err?.name !== 'NotAllowedError') {
+        setPasskeyError(err?.errors?.[0]?.message || err?.message || 'Passkey authentication could not be completed.');
+      }
+    } finally {
+      setPasskeyLoading(false);
+    }
+  }
+
+  /** After a successful local or code login, open the right station screen. */
   const finish = useCallback(
     async (role?: Role) => {
       const u = role ? { role } : useAuth.getState().user;
@@ -27,32 +80,96 @@ export function LoginPage() {
     [navigate],
   );
 
-  // Every hook runs before this exit, because a sign-in lands here with a user and React counts the
-  // hooks from one render to the next — leaving one below this return would tear the tree down.
+  // When Clerk authenticates the user, sync with restaurant database:
+  // If user has a restaurant -> straight to owner dashboard (/app)
+  // If user is new -> straight to create restaurant form (/register)
+  useEffect(() => {
+    if (!isUserLoaded || !isClerkSignedIn || !clerkUser) return;
+    let cancelled = false;
+
+    async function sync() {
+      setSyncing(true);
+      setSyncError(null);
+      try {
+        const primaryEmail =
+          clerkUser?.primaryEmailAddress?.emailAddress ||
+          clerkUser?.emailAddresses?.[0]?.emailAddress ||
+          '';
+        const fullName =
+          clerkUser?.fullName ||
+          [clerkUser?.firstName, clerkUser?.lastName].filter(Boolean).join(' ') ||
+          '';
+        const primaryPhone =
+          clerkUser?.primaryPhoneNumber?.phoneNumber ||
+          clerkUser?.phoneNumbers?.[0]?.phoneNumber ||
+          '';
+
+        const result = await syncClerk({
+          clerkUserId: clerkUser?.id ?? '',
+          email: primaryEmail || undefined,
+          name: fullName || undefined,
+          phone: primaryPhone || undefined,
+        });
+
+        if (cancelled) return;
+
+        if (!result.isNewUser && result.user) {
+          // Existing owner or staff with restaurant -> send directly to their dashboard
+          connectRealtime(useAuth.getState().accessToken);
+          navigate(homeFor(result.user.role), { replace: true });
+        } else {
+          // New owner without a restaurant -> send to Create Restaurant form
+          navigate('/register', { replace: true });
+        }
+      } catch (err: any) {
+        if (cancelled) return;
+        setSyncError(errMsg(err, 'Could not verify your restaurant account'));
+      } finally {
+        if (!cancelled) setSyncing(false);
+      }
+    }
+
+    void sync();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isUserLoaded, isClerkSignedIn, clerkUser, syncClerk, navigate]);
+
+  // If already authenticated in our system, navigate straight to their home dashboard
   if (user) return <Navigate to={homeFor(user.role)} replace />;
 
-  async function submit(e: FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    setError(null);
-    try {
-      await login(identifier.trim(), password);
-      await finish();
-    } catch (err) {
-      setError(errMsg(err, 'Could not sign in'));
-    } finally {
-      setBusy(false);
-    }
-  }
+  const clerkSessionActive = isUserLoaded && isClerkSignedIn && !!clerkUser;
 
   return (
     <div className="grid min-h-screen lg:grid-cols-2">
-      {/* Decorative / branding panel */}
-      <div className="relative hidden flex-col justify-between overflow-hidden bg-ink-950 p-12 text-white lg:flex">
-        <div className="relative z-10">
-          <Brand light />
+      {/* ── Left branding panel: Centered logo badge with borders, gap, and centered tagline ── */}
+      <div className="relative hidden flex-col items-center justify-center overflow-hidden bg-ink-950 p-12 text-white lg:flex">
+        {/* Subtle radial glow */}
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_var(--tw-gradient-stops))] from-ember-500/10 via-transparent to-transparent opacity-40" />
+
+        {/* Logo Card — Centered on top with border on all sides */}
+        <div className="relative z-10 flex flex-col items-center rounded-2xl border border-ink-700/80 bg-ink-900/60 px-12 py-7 shadow-xl shadow-black/40 backdrop-blur-sm">
+          {/* Flame icon — centered at the top */}
+          <span className="grid h-12 w-12 place-items-center rounded-2xl bg-ember-500 text-white shadow-lg shadow-ember-500/30">
+            <Flame size={24} strokeWidth={2.4} />
+          </span>
+          {/* Logo title and subtitle — centered */}
+          <div className="mt-3 text-center">
+            <span className="block font-display text-[22px] font-800 tracking-tight text-white">
+              Sizzle
+            </span>
+            <span className="block text-[10.5px] font-bold uppercase tracking-[0.2em] text-ember-500">
+              Restaurant OS
+            </span>
+          </div>
         </div>
-        <div className="relative z-10 max-w-md space-y-4">
+
+        {/* Gap between logo and text */}
+        <div className="h-10" />
+
+        {/* Tagline — Centered in the middle */}
+        <div className="relative z-10 max-w-md space-y-4 text-center">
           <h2 className="font-display text-3xl font-800 tracking-tight text-white sm:text-4xl">
             Live orders, active tables and clear bills.
           </h2>
@@ -61,99 +178,222 @@ export function LoginPage() {
             manager, waiter, kitchen or cashier.
           </p>
         </div>
-        <p className="relative text-[12px] text-ink-500">Sizzle · floor, counter and kitchen in one system</p>
+
+        {/* Footer tagline */}
+        <p className="absolute bottom-6 text-[12px] text-ink-500">
+          Sizzle · floor, counter and kitchen in one system
+        </p>
       </div>
 
-      {/* The two doors: an existing restaurant, or a new one. */}
-      <div className="flex flex-col justify-center px-6 py-12 sm:px-14">
+      {/* ── Right Panel: Clerk Authentication & Station Access ── */}
+      <div className="flex flex-col justify-center px-6 py-12 sm:px-14 bg-ink-50/50">
         <div className="mx-auto w-full max-w-sm">
-          <div className="lg:hidden">
+          <div className="lg:hidden mb-6 flex justify-center">
             <Brand />
           </div>
 
-          <h1 className="mt-8 font-display text-2xl font-800 tracking-tight text-ink-900 lg:mt-0">
-            {phoneDoor ? 'Start your shift' : 'Sign in to your restaurant'}
-          </h1>
-          <p className="mt-1 text-sm leading-relaxed text-ink-500">
-            {phoneDoor
-              ? 'The number you gave on the job form, or the one your manager typed. A code is worth five minutes.'
-              : 'The email or phone number your owner registered you with, and your password.'}
-          </p>
-
-          {phoneDoor ? (
-            <CodeForm onDone={finish} onBack={() => setPhoneDoor(false)} />
-          ) : (
-            <form onSubmit={submit} className="mt-5 space-y-4">
-              <Field label="Email or phone">
-                <Input
-                  value={identifier}
-                  onChange={(e) => setIdentifier(e.target.value)}
-                  placeholder="you@restaurant.com"
-                  autoComplete="username"
-                  autoFocus
-                  required
-                />
-              </Field>
-              <Field label="Password">
-                <Input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  autoComplete="current-password"
-                  required
-                />
-              </Field>
-              {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-[13px] text-red-700 ring-1 ring-red-200">{error}</p>}
-              <Button type="submit" variant="primary" size="lg" className="w-full" loading={busy} icon={<ArrowRight size={16} />}>
-                Sign in
-              </Button>
+          {/* ── Top Portal Selector: Owner vs Staff Station ── */}
+          {!syncing && !clerkSessionActive && (
+            <div className="mb-4 flex rounded-xl border border-ink-200/80 bg-ink-100/90 p-1 shadow-2xs">
+              <button
+                type="button"
+                onClick={() => setStaffDoor(false)}
+                className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-bold transition-all ${
+                  !staffDoor
+                    ? 'bg-white text-ink-950 shadow-xs'
+                    : 'text-ink-600 hover:text-ink-900'
+                }`}
+              >
+                <span>👑 Owner / Management</span>
+              </button>
               <button
                 type="button"
                 onClick={() => {
-                  setPhoneDoor(true);
-                  setError(null);
+                  setDoorTab('email');
+                  setStaffDoor(true);
                 }}
-                className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-ink-600 hover:text-ember-600 hover:underline"
+                className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-bold transition-all ${
+                  staffDoor
+                    ? 'bg-white text-ember-600 shadow-xs ring-1 ring-ember-200'
+                    : 'text-ink-600 hover:text-ink-900'
+                }`}
               >
-                <MessageSquareText size={15} /> No password yet — take a code sent to my phone
+                <Mail size={13} className="text-ember-500" />
+                <span>👤 Staff Door (Email OTP)</span>
               </button>
-            </form>
+            </div>
           )}
 
-          <div className="my-7 flex items-center gap-3">
-            <span className="h-px flex-1 bg-ink-200" />
-            <span className="text-[11px] font-semibold uppercase tracking-widest text-ink-400">or</span>
-            <span className="h-px flex-1 bg-ink-200" />
-          </div>
+          {syncing || clerkSessionActive ? (
+            <div className="rounded-2xl border border-ink-200/80 bg-white p-8 text-center shadow-xs">
+              <div className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-ember-500/10 text-ember-600">
+                <Spinner label="Verifying account" />
+              </div>
+              <h3 className="mt-4 font-display text-lg font-bold text-ink-900">
+                Opening your restaurant workspace…
+              </h3>
+              <p className="mt-1 text-xs text-ink-500">
+                Checking your restaurant association and permissions.
+              </p>
+              {syncError && (
+                <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700">
+                  {syncError}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const auth = useAuth.getState();
+                      auth.logout();
+                      setSyncError(null);
+                    }}
+                    className="mt-2 block w-full rounded-lg bg-red-100 px-3 py-1.5 text-xs font-semibold text-red-800 hover:bg-red-200 transition-colors"
+                  >
+                    Sign out and try again
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : staffDoor ? (
+            /* Staff Sign-in Door: Email Code or Phone Code (Passwordless) */
+            <div className="rounded-2xl border border-ink-200/80 bg-white p-6 shadow-xs">
+              <div className="flex items-center justify-between pb-4 border-b border-ink-100">
+                <div>
+                  <h3 className="font-display text-base font-bold text-ink-900">
+                    Staff Station Sign In
+                  </h3>
+                  <p className="text-xs text-ink-500">Fast one-time code — no password needed</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setStaffDoor(false)}
+                  className="text-xs font-semibold text-ember-600 hover:text-ember-700"
+                >
+                  Owner / Clerk &rarr;
+                </button>
+              </div>
 
-          <button
-            type="button"
-            onClick={() => navigate('/register')}
-            className="flex w-full items-center gap-3 rounded-xl border border-ink-200 bg-white px-4 py-3.5 text-left transition-all hover:border-ember-300 hover:bg-ember-50/40"
-          >
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-ember-500 text-white">
-              <Store size={18} />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-[14.5px] font-semibold text-ink-900">Create a restaurant</span>
-              <span className="block text-[12.5px] leading-relaxed text-ink-500">
-                Name it, set its branding, and you are its owner — no sales call, no waiting.
-              </span>
-            </span>
-            <ArrowRight size={16} className="shrink-0 text-ink-400" />
-          </button>
+              {/* Tabs for Email vs Passkey vs Phone Code */}
+              <div className="mt-4 flex rounded-xl bg-ink-100 p-1">
+                <button
+                  type="button"
+                  onClick={() => setDoorTab('email')}
+                  className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-semibold transition-all ${
+                    doorTab === 'email' ? 'bg-white text-ink-900 shadow-2xs' : 'text-ink-600 hover:text-ink-900'
+                  }`}
+                >
+                  <Mail size={13} />
+                  <span>Email</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDoorTab('passkey')}
+                  className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-semibold transition-all ${
+                    doorTab === 'passkey' ? 'bg-white text-ink-900 shadow-2xs' : 'text-ink-600 hover:text-ink-900'
+                  }`}
+                >
+                  <Fingerprint size={13} className="text-ember-600" />
+                  <span>Passkey</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDoorTab('phone')}
+                  className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-semibold transition-all ${
+                    doorTab === 'phone' ? 'bg-white text-ink-900 shadow-2xs' : 'text-ink-600 hover:text-ink-900'
+                  }`}
+                >
+                  <Smartphone size={13} />
+                  <span>Phone</span>
+                </button>
+              </div>
 
-          <p className="mt-6 flex items-start gap-2 text-[11.5px] leading-relaxed text-ink-400">
-            <ShieldCheck size={13} className="mt-0.5 shrink-0" />
-            <span>
-              Every restaurant’s orders, menus and photos are its own records. Signing in opens one kitchen, not all
-              of them.{' '}
-              <Link to="/book/saffron-and-smoke" className="font-semibold text-ink-500 hover:text-ink-800 hover:underline">
-                Dining as a guest? Book a table →
-              </Link>
-            </span>
-          </p>
+              <div className="mt-4">
+                {doorTab === 'email' ? (
+                  <EmailCodeForm onComplete={finish} />
+                ) : doorTab === 'passkey' ? (
+                  <PasskeyForm
+                    onPasskey={handlePasskeySignIn}
+                    loading={passkeyLoading}
+                    error={passkeyError}
+                  />
+                ) : (
+                  <CodeForm onComplete={finish} />
+                )}
+              </div>
+            </div>
+          ) : (
+            /* Primary Clerk Sign-in Component */
+            <div className="space-y-4">
+              {syncError && (
+                <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700">
+                  {syncError}
+                </div>
+              )}
+
+              {/* Passkey / Biometric Quick Sign-In */}
+              <button
+                type="button"
+                onClick={handlePasskeySignIn}
+                disabled={passkeyLoading}
+                className="flex w-full items-center justify-center gap-2 rounded-xl border border-ink-200 bg-white py-2.5 px-4 text-xs font-semibold text-ink-800 shadow-2xs hover:bg-ink-50 transition-colors"
+              >
+                <Fingerprint size={16} className="text-ember-600" />
+                <span>{passkeyLoading ? 'Verifying biometric passkey…' : 'Sign in with Passkey (Touch ID / Face ID)'}</span>
+              </button>
+
+              {passkeyError && (
+                <div className="rounded-xl border border-red-200 bg-red-50 p-2.5 text-xs text-red-700">
+                  {passkeyError}
+                </div>
+              )}
+
+              <div className="flex justify-center">
+                <SignIn
+                  routing="hash"
+                  appearance={{
+                    elements: {
+                      rootBox: 'w-full',
+                      card: 'shadow-xs border border-ink-200/80 rounded-2xl w-full p-6 bg-white',
+                      headerTitle: 'font-display text-xl font-800 text-ink-950',
+                      headerSubtitle: 'text-xs text-ink-500',
+                      socialButtonsBlockButton:
+                        'border border-ink-200 hover:bg-ink-50 rounded-xl text-ink-800 font-semibold text-xs py-2.5 transition-colors',
+                      dividerLine: 'bg-ink-200',
+                      dividerText: 'text-ink-400 text-[11px] font-semibold uppercase',
+                      formButtonPrimary:
+                        'bg-ember-500 hover:bg-ember-600 text-white font-semibold text-xs py-2.5 rounded-xl transition-all shadow-xs',
+                      formFieldInput:
+                        'rounded-xl border-ink-200 focus:border-ember-500 focus:ring-1 focus:ring-ember-500 text-xs py-2',
+                      footerActionLink: 'text-ember-600 hover:text-ember-700 font-semibold text-xs',
+                    },
+                  }}
+                />
+              </div>
+
+              {/* Bottom Card for floor staff & team sign in without password */}
+              <div className="rounded-xl border border-ink-200/70 bg-white p-3.5 shadow-2xs">
+                <div className="flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2 text-ink-600">
+                    <Mail size={15} className="text-ember-500" />
+                    <span>Staff member with email or phone code?</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDoorTab('email');
+                      setStaffDoor(true);
+                    }}
+                    className="font-semibold text-ember-600 hover:text-ember-700"
+                  >
+                    Staff Sign In &rarr;
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-center gap-1.5 text-[11.5px] text-ink-400">
+                <ShieldCheck size={13} className="text-leaf-600" />
+                <span>Single Sign-On powered by Clerk</span>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -161,39 +401,148 @@ export function LoginPage() {
 }
 
 /**
- * The floor's door: a phone number and a code that is worth five minutes. A walk-in who was
- * approved on the job form has never been given a password, so this is how a shift starts.
+ * Staff members can sign in with their registered email address:
+ * They receive a short-lived 6-digit OTP code in their email, without needing any password.
  */
-function CodeForm({ onDone, onBack }: { onDone: () => Promise<void> | void; onBack: () => void }) {
+function EmailCodeForm({ onComplete }: { onComplete: (role?: Role) => void }) {
+  const { loginWithEmailCode } = useAuth();
+  const [email, setEmail] = useState('');
+  const [code, setCode] = useState('');
+  const [sent, setSent] = useState(false);
+  const [hint, setHint] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function sendCode(e: FormEvent) {
+    e.preventDefault();
+    if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setError('Enter your registered staff email address');
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const { data } = await http.post<{ ok: boolean; sent: boolean; demoCode?: string; name?: string; role?: string }>(
+        '/auth/email-otp/request',
+        { email: email.trim() },
+      );
+      setSent(true);
+      if (data.demoCode) {
+        setHint(`Demo code: ${data.demoCode}`);
+        setCode(data.demoCode);
+      }
+    } catch (err) {
+      setError(errMsg(err, 'No active staff account found with that email'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function verify(e: FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      await loginWithEmailCode(email.trim(), code.trim());
+      onComplete();
+    } catch (err) {
+      setError(errMsg(err, 'That code is incorrect or has expired'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!sent) {
+    return (
+      <form onSubmit={sendCode} className="space-y-3.5">
+        <Field label="Staff Email Address" hint="The email your manager or owner invited you with.">
+          <Input
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="waiter@restaurant.in"
+            inputMode="email"
+            autoFocus
+          />
+        </Field>
+        {error && <p className="text-xs text-red-600">{error}</p>}
+        <Button
+          type="submit"
+          variant="primary"
+          className="w-full"
+          loading={busy}
+          icon={<Mail size={14} />}
+        >
+          Send Sign-in Code
+        </Button>
+      </form>
+    );
+  }
+
+  return (
+    <form onSubmit={verify} className="space-y-3.5">
+      <Field label={`Code sent to ${email}`} hint={hint ?? 'Enter the 6-digit code from your email.'}>
+        <Input
+          value={code}
+          onChange={(e) => setCode(e.target.value)}
+          placeholder="123456"
+          inputMode="numeric"
+          autoFocus
+        />
+      </Field>
+      {error && <p className="text-xs text-red-600">{error}</p>}
+      <Button
+        type="submit"
+        variant="primary"
+        className="w-full"
+        loading={busy}
+        icon={<KeyRound size={14} />}
+      >
+        Sign In with Code
+      </Button>
+      <button
+        type="button"
+        onClick={() => setSent(false)}
+        className="w-full text-center text-xs text-ink-500 hover:text-ink-800"
+      >
+        Use a different email address
+      </button>
+    </form>
+  );
+}
+
+/**
+ * Floor workers (waiters, runners, cashiers) can sign in by phone number alone: they receive a
+ * short-lived OTP code on SMS/WhatsApp without having to remember passwords.
+ */
+function CodeForm({ onComplete }: { onComplete: (role?: Role) => void }) {
   const { loginWithCode } = useAuth();
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
   const [sent, setSent] = useState(false);
-  const [demoCode, setDemoCode] = useState<string | null>(null);
-  const [noGateway, setNoGateway] = useState(false);
+  const [hint, setHint] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function request(e: FormEvent) {
+  async function sendCode(e: FormEvent) {
     e.preventDefault();
+    if (phone.trim().length < 8) {
+      setError('Enter your phone number');
+      return;
+    }
     setBusy(true);
     setError(null);
-    setNoGateway(false);
     try {
-      const { data } = await http.post<{ ok: boolean; sent: boolean; demoCode: string | null }>('/auth/otp/request', {
-        phone: phone.trim(),
-      });
-      // A server with no text gateway hands back no code, which means nothing is coming. The form
-      // stays on the number and says so, instead of opening a box for digits that never arrive.
-      if (data.sent && !data.demoCode) {
-        setNoGateway(true);
-      } else {
-        setSent(data.sent);
-        setDemoCode(data.demoCode);
-        if (!data.sent) setError('We could not send a code to that number. Check the digits, or ask your manager to add you.');
+      const { data } = await http.post<{ ok: boolean; sent: boolean; demoCode?: string }>(
+        '/auth/otp/request',
+        { phone: phone.trim() },
+      );
+      setSent(true);
+      if (data.demoCode) {
+        setHint(`Demo code: ${data.demoCode}`);
+        setCode(data.demoCode);
       }
     } catch (err) {
-      setError(errMsg(err, 'Could not send a code'));
+      setError(errMsg(err, 'Could not send a code right now'));
     } finally {
       setBusy(false);
     }
@@ -205,10 +554,9 @@ function CodeForm({ onDone, onBack }: { onDone: () => Promise<void> | void; onBa
     setError(null);
     try {
       await loginWithCode(phone.trim(), code.trim());
-      await onDone();
+      onComplete();
     } catch (err) {
-      setError(errMsg(err, 'That code is not right, or it has expired'));
-      setCode('');
+      setError(errMsg(err, 'That code is incorrect or has expired'));
     } finally {
       setBusy(false);
     }
@@ -216,73 +564,100 @@ function CodeForm({ onDone, onBack }: { onDone: () => Promise<void> | void; onBa
 
   if (!sent) {
     return (
-      <form onSubmit={request} className="mt-5 space-y-4">
-        <Field label="Your phone number">
-          <Input value={phone} onChange={(e) => setPhone(e.target.value)} inputMode="tel" autoComplete="tel" placeholder="98765 43210" autoFocus required />
+      <form onSubmit={sendCode} className="space-y-3.5">
+        <Field label="Phone number" hint="The phone you gave when your account was created.">
+          <Input
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="+91 98200 11001"
+            inputMode="tel"
+            autoFocus
+          />
         </Field>
-        {noGateway && (
-          <p className="rounded-lg bg-amber-50 px-3 py-2 text-[12.5px] text-amber-900 ring-1 ring-amber-200">
-            This server is not wired to a text-message provider, so no code can reach a phone. Your
-            manager can set a password on your account under Back office → Staff, and you can sign in
-            with that instead.
-          </p>
-        )}
-        {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-[13px] text-red-700 ring-1 ring-red-200">{error}</p>}
-        <Button type="submit" variant="primary" size="lg" className="w-full" loading={busy} icon={<MessageSquareText size={16} />}>
-          Send me a code
+        {error && <p className="text-xs text-red-600">{error}</p>}
+        <Button
+          type="submit"
+          variant="primary"
+          className="w-full"
+          loading={busy}
+          icon={<MessageSquareText size={14} />}
+        >
+          Send Login Code
         </Button>
-        <button type="button" onClick={onBack} className="text-[13px] font-semibold text-ink-600 hover:text-ember-600 hover:underline">
-          Sign in with your password instead
-        </button>
       </form>
     );
   }
 
   return (
-    <form onSubmit={verify} className="mt-5 space-y-4">
-      <Field label="Six-digit code" hint={`Sent to ${phone}. It is worth five minutes.`}>
+    <form onSubmit={verify} className="space-y-3.5">
+      <Field label={`Code sent to ${phone}`} hint={hint ?? 'Enter the digits from the text.'}>
         <Input
           value={code}
-          onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+          onChange={(e) => setCode(e.target.value)}
+          placeholder="123456"
           inputMode="numeric"
-          autoComplete="one-time-code"
           autoFocus
-          placeholder="000000"
-          className="tracking-[0.35em] text-center font-display text-lg"
-          required
         />
       </Field>
-      {demoCode && (
-        <p className="rounded-lg bg-amber-50 px-3 py-2 text-[12.5px] text-amber-900 ring-1 ring-amber-200">
-          No SMS gateway on this demo, so the code is shown here: <span className="font-display text-[15px] font-800 tracking-widest">{demoCode}</span>
-        </p>
-      )}
-      {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-[13px] text-red-700 ring-1 ring-red-200">{error}</p>}
-      <div className="flex gap-2">
-        <Button type="button" variant="ghost" onClick={() => { setSent(false); setCode(''); setError(null); }}>
-          Change number
-        </Button>
-        <Button type="submit" variant="primary" size="lg" className="flex-1" loading={busy} disabled={code.length < 6} icon={<ArrowRight size={16} />}>
-          Start shift
-        </Button>
-      </div>
-      <button type="button" onClick={onBack} className="text-[13px] font-semibold text-ink-600 hover:text-ember-600 hover:underline">
-        Sign in with your password instead
+      {error && <p className="text-xs text-red-600">{error}</p>}
+      <Button
+        type="submit"
+        variant="primary"
+        className="w-full"
+        loading={busy}
+        icon={<KeyRound size={14} />}
+      >
+        Sign In with Code
+      </Button>
+      <button
+        type="button"
+        onClick={() => setSent(false)}
+        className="w-full text-center text-xs text-ink-500 hover:text-ink-800"
+      >
+        Try another phone number
       </button>
     </form>
   );
 }
 
-/** Maps a staff role to their home route — used by every post-login redirect. */
-export function homeFor(role: Role): string {
-  switch (role) {
-    case 'KITCHEN':
-      return '/kds';
-    case 'WAITER':
-      return '/floor';
-    case 'CASHIER':
-      return '/pos';
-    default:
-      return '/app';
-  }
+/**
+ * Biometric Passkey sign-in for staff and managers (Touch ID / Face ID / Windows Hello).
+ */
+function PasskeyForm({
+  onPasskey,
+  loading,
+  error,
+}: {
+  onPasskey: () => void;
+  loading: boolean;
+  error: string | null;
+}) {
+  return (
+    <div className="space-y-4 py-3 text-center">
+      <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-ember-50 text-ember-600 ring-1 ring-ember-200">
+        <Fingerprint size={30} />
+      </div>
+      <div>
+        <h4 className="font-display text-sm font-bold text-ink-900">Sign in with Passkey</h4>
+        <p className="mt-1 text-xs text-ink-500 leading-relaxed">
+          Use Touch ID, Face ID, or Windows Hello to open your station instantly without typing a password.
+        </p>
+      </div>
+      {error && (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-2.5 text-xs text-red-700">
+          {error}
+        </div>
+      )}
+      <Button
+        type="button"
+        variant="primary"
+        className="w-full"
+        loading={loading}
+        onClick={onPasskey}
+        icon={<Fingerprint size={15} />}
+      >
+        Authenticate with Biometrics
+      </Button>
+    </div>
+  );
 }

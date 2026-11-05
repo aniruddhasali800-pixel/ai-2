@@ -46,10 +46,13 @@ the health-check path, `NODE_ENV=production` and `NODE_VERSION=22`.
 | Health check path | `/api/health` |
 | Node version | 22 (`NODE_VERSION`) |
 
-**Set the token secrets before you set `NODE_ENV=production`.** A production process refuses to start
-when `ACCESS_TOKEN_SECRET` or `REFRESH_TOKEN_SECRET` is still the development default or a
-`change-me` template value — the deploy then fails at boot rather than running on a key anybody who
-has read this repository can forge sessions with.
+**Set the secrets before you set `NODE_ENV=production`.** A production process refuses to start when
+`ACCESS_TOKEN_SECRET` or `REFRESH_TOKEN_SECRET` is still the development default or a `change-me`
+template value, and refuses for the same reason when any of the four webhook secrets is blank, still the
+value this repository publishes, or shared between two providers — the deploy then fails at boot rather
+than running on a key anybody who has read this repository can forge sessions, settle bills or push
+phantom orders with. `docs/SECURITY_INCIDENT_WEBHOOKS.md` explains why those four are being rotated
+whatever their current value is.
 
 ## 4. Environment variables
 
@@ -67,6 +70,12 @@ commit it. `backend/.env.example` is the annotated template for a local `.env`.
 | `REFRESH_TOKEN_TTL_DAYS` | How many days a device stays signed in without typing anything. Default `7`. |
 | `PORT` | Assigned by the host; defaults to 4000 and Render sets it itself. |
 | `NODE_VERSION` | The runtime the host builds and runs on. |
+| `PAYMENT_WEBHOOK_SECRET` | HMAC key the sandbox gateway signs its callback with. It settles bills, so a value anybody can read out of this repository is a way to mark money received. |
+| `SWIGGY_WEBHOOK_SECRET`, `ZOMATO_WEBHOOK_SECRET`, `WEBSITE_WEBHOOK_SECRET` | The same check on the delivery and website partner callbacks, one key per partner. Two partners sharing a key is one key: a message signed for Swiggy then verifies as a Zomato order, so the boot guard names both variables and refuses to start. The one pairing it allows is `RAZORPAY_WEBHOOK_SECRET` equal to `PAYMENT_WEBHOOK_SECRET`, because a single Razorpay endpoint signs for both. |
+| `*_WEBHOOK_SECRET_PREVIOUS` | The rotation window, unset normally. While a provider is being moved onto a new key, its outgoing secret goes here and deliveries still signed with it keep being believed, because a gateway retries what it queued before its endpoint was re-pointed. Clear each one once the provider's delivery log shows nothing left to retry. A value this repository publishes is rejected here, and a production process will not start on one. |
+
+Every webhook body is compared against its signature before it is trusted, and on a host with a public
+address the two webhook routes answer `503` until all four of the keys above hold a value of their own.
 
 ### Where the records live
 
@@ -97,12 +106,10 @@ commit it. `backend/.env.example` is the annotated template for a local `.env`.
 A restaurant that onboarded itself through `/register` is a different tenant and is never touched by
 either variable.
 
-### Integrations, all optional
+### Integrations, all optional apart from the webhook keys above
 
 | Name | What it governs |
 | --- | --- |
-| `PAYMENT_WEBHOOK_SECRET` | HMAC key the mock gateway signs its callback with. Every webhook body is compared against its signature before it is trusted. |
-| `SWIGGY_WEBHOOK_SECRET`, `ZOMATO_WEBHOOK_SECRET`, `WEBSITE_WEBHOOK_SECRET` | The same check on the delivery and website partner callbacks. |
 | `SWIGGY_API_BASE`, `SWIGGY_API_KEY`, `ZOMATO_API_BASE`, `ZOMATO_API_KEY` | Aggregator push endpoints. Unset, those channels stay off. |
 | `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET` | A real card/UPI gateway. Unset, checkout runs the in-house provider, and a settlement still needs an explicit confirmation from staff — see [`README.md`](README.md), *What is deliberately mocked*. |
 | `BILL_SERVICE_BASE_URL`, `BILL_SERVICE_SHARED_SECRET`, `BILL_SERVICE_KEY` | The separate bill service that holds the payee UPI ID, the verification queue and the income figures. With no base URL Sizzle keeps its own in-house UPI QR and the sandbox gateway, so this repo deploys with nothing beside it. |
@@ -136,8 +143,11 @@ in the allowlist, so stickers printed before the domain swap keep opening.
 One thing to fix on that service by hand: its `/api/health` answers `"env": "development"`, so its
 dashboard never set `NODE_ENV`. The token secrets there are already real — a session signed with the
 development default this repository publishes is refused — which is the only reason leaving it is
-tolerable. Set `NODE_ENV=production` when convenient and what is left of the development behavior goes
-with it: request logging, error detail, and the demo master password on any host that had named one.
+tolerable. Set `NODE_ENV=production` when convenient, and the four webhook secrets in §4 at the same
+time, because production refuses to boot without them. What that switch changes: an unhandled error
+stops being printed with its internals, the demo master password is forced blank on any host that had
+named one, and request logging switches from the short development format to the combined one, which
+records the caller's address and user agent — logging does not go away, it gets more informative.
 
 ## 7. After it starts
 

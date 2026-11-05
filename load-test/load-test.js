@@ -110,6 +110,10 @@ class LoadTestRunner {
     this.log('═══ TEST 1: Staff Authentication (2 Waiters, Cashier, Kitchen) ═══');
     const results = [];
 
+    // The API only skips its own throttling for a run that presents LOAD_TEST_TOKEN, which a production
+    // host refuses to start with. Set it here only when pointing at a staging instance that has it.
+    const loadTestHeaders = process.env.LOAD_TEST_TOKEN ? { 'x-load-test-auth': process.env.LOAD_TEST_TOKEN } : {};
+
     const staffAccounts = [
       { identifier: '+91 98200 11005', label: 'Waiter 1 (Sneha)' },
       { identifier: '+91 98200 11006', label: 'Waiter 2 (Imran)' },
@@ -118,10 +122,10 @@ class LoadTestRunner {
     ];
 
     for (const account of staffAccounts) {
-      // Request OTP code with bypass header so test harness is never throttled
+      // Request OTP code, presenting the harness token when this run was given one
       const otpReq = await httpRequest('POST', '/api/auth/otp/request', {
         phone: account.identifier,
-      }, { 'x-load-test-auth': '1' });
+      }, loadTestHeaders);
 
       let token = null;
       let finalRes = otpReq;
@@ -131,7 +135,7 @@ class LoadTestRunner {
         const otpVerify = await httpRequest('POST', '/api/auth/otp/verify', {
           phone: account.identifier,
           code: otpReq.data.demoCode,
-        }, { 'x-load-test-auth': '1' });
+        }, loadTestHeaders);
         finalRes = otpVerify;
         token = otpVerify.data?.accessToken || otpVerify.data?.token;
       }

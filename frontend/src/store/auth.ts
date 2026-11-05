@@ -11,8 +11,39 @@ interface AuthState {
   refreshToken: string | null;
   ready: boolean;
   login: (identifier: string, password: string) => Promise<void>;
+  loginWithClerk: (identifier: string, name?: string) => Promise<void>;
+  syncClerk: (input: {
+    clerkUserId: string;
+    email?: string;
+    name?: string;
+    phone?: string;
+  }) => Promise<{
+    isNewUser: boolean;
+    user?: User;
+    restaurant?: Restaurant;
+    accessToken?: string;
+    refreshToken?: string;
+  }>;
+  registerRestaurant: (input: {
+    restaurantName: string;
+    clerkUserId: string;
+    name?: string;
+    email?: string;
+    phone?: string;
+    cuisine?: string;
+    logoUrl?: string;
+    tagline?: string;
+    address?: {
+      line1?: string;
+      city?: string;
+      state?: string;
+      pincode?: string;
+    };
+  }) => Promise<void>;
   /** The floor signs in with the phone they gave on the job form plus a code worth minutes. */
   loginWithCode: (phone: string, code: string) => Promise<void>;
+  /** Staff signs in with their registered email address using a one-time email OTP code. */
+  loginWithEmailCode: (email: string, code: string) => Promise<void>;
   register: (input: Record<string, unknown>) => Promise<void>;
   setTokens: (tokens: { accessToken: string; refreshToken: string }) => void;
   setRestaurant: (restaurant: Restaurant) => void;
@@ -20,7 +51,7 @@ interface AuthState {
   bootstrap: () => Promise<void>;
 }
 
-/** Any sign-in — password, code or a fresh restaurant — hands back the same shape. */
+/** Any sign-in — password, code, Clerk or a fresh restaurant — hands back the same shape. */
 function sessionOf(data: AuthResult) {
   return {
     user: data.user,
@@ -57,8 +88,42 @@ export const useAuth = create<AuthState>()(
         live(get().accessToken);
       },
 
+      async loginWithClerk(identifier, name) {
+        const { data } = await http.post<AuthResult>('/auth/clerk', { identifier, name });
+        set(sessionOf(data));
+        live(get().accessToken);
+      },
+
+      async syncClerk(input) {
+        const { data } = await http.post<{
+          isNewUser: boolean;
+          user?: User;
+          restaurant?: Restaurant;
+          accessToken?: string;
+          refreshToken?: string;
+        }>('/auth/clerk-sync', input);
+
+        if (!data.isNewUser && data.user && data.accessToken && data.refreshToken) {
+          set(sessionOf(data as AuthResult));
+          live(get().accessToken);
+        }
+        return data;
+      },
+
+      async registerRestaurant(input) {
+        const { data } = await http.post<AuthResult>('/auth/register-restaurant', input);
+        set(sessionOf(data));
+        live(get().accessToken);
+      },
+
       async loginWithCode(phone, code) {
         const { data } = await http.post<AuthResult>('/auth/otp/verify', { phone, code });
+        set(sessionOf(data));
+        live(get().accessToken);
+      },
+
+      async loginWithEmailCode(email, code) {
+        const { data } = await http.post<AuthResult>('/auth/email-otp/verify', { email, code });
         set(sessionOf(data));
         live(get().accessToken);
       },
@@ -86,6 +151,13 @@ export const useAuth = create<AuthState>()(
         // The socket is a member of rooms keyed to this identity; leaving them stops the next
         // person on this device being told about the previous one's tables.
         disconnectRealtime();
+        try {
+          if (typeof window !== 'undefined' && (window as any).Clerk) {
+            void (window as any).Clerk.signOut().catch(() => undefined);
+          }
+        } catch {
+          // ignore
+        }
         set({ user: null, restaurant: null, accessToken: null, refreshToken: null, ready: true });
       },
 
@@ -133,6 +205,7 @@ export const PERMISSIONS: Record<string, string[]> = {
     'payments:read', 'payments:write', 'tables:read', 'bookings:read', 'requests:read', 'requests:write',
   ],
   KITCHEN: ['menu:read', 'orders:read', 'kitchen:operate'],
+  COOK: ['menu:read', 'orders:read', 'kitchen:operate'],
   WAITER: [
     'menu:read', 'orders:read', 'orders:write', 'orders:status', 'tables:read', 'tables:write',
     'bookings:read', 'bookings:write', 'requests:read', 'requests:write',

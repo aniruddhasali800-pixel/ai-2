@@ -1,6 +1,8 @@
 export { UserModel, type User } from './User';
 export { StaffApplicationModel, type StaffApplication } from './StaffApplication';
 export { LoginCodeModel, type LoginCode } from './LoginCode';
+export { EmailCodeModel, type EmailCode } from './EmailCode';
+export { WebhookEventModel, type WebhookEvent } from './WebhookEvent';
 export { RestaurantModel, type Restaurant } from './Restaurant';
 export { TableModel, type Table } from './Table';
 export { TableSessionModel, type TableSession } from './TableSession';

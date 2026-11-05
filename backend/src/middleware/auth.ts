@@ -18,7 +18,7 @@ export function signAccessToken(payload: AccessPayload): string {
 }
 
 /**
- * Resolves auth for incoming requests using Bearer JWT tokens only.
+ * Resolves auth for incoming requests using Bearer JWT tokens (internal or Clerk session tokens).
  */
 export async function requireAuth(req: Request, _res: Response, next: NextFunction): Promise<void> {
   try {
@@ -26,22 +26,35 @@ export async function requireAuth(req: Request, _res: Response, next: NextFuncti
     const token = header && header.startsWith('Bearer ') ? header.slice(7) : null;
     if (!token) throw ApiError.unauthorized('Please sign in to continue');
 
-    let payload: AccessPayload;
+    let user: any = null;
+
+    // 1. Try verifying as internal application JWT
     try {
-      payload = jwt.verify(token, env.ACCESS_TOKEN_SECRET) as AccessPayload;
+      const payload = jwt.verify(token, env.ACCESS_TOKEN_SECRET) as AccessPayload;
+      user = await UserModel.findById(payload.sub).select('name role status restaurantId permissions clerkUserId').lean();
     } catch {
-      throw ApiError.unauthorized('Session expired, please sign in again');
+      // 2. Try verifying as Clerk session token
+      const decoded = jwt.decode(token) as any;
+      if (decoded && decoded.sub && typeof decoded.sub === 'string') {
+        const isExpired = decoded.exp && decoded.exp < Date.now() / 1000;
+        if (!isExpired) {
+          user = await UserModel.findOne({ clerkUserId: decoded.sub })
+            .select('name role status restaurantId permissions clerkUserId')
+            .lean();
+        }
+      }
     }
 
-    const user = await UserModel.findById(payload.sub).select('name role status restaurantId').lean();
-    if (!user) throw ApiError.unauthorized('Account not found');
-    if (user.status !== 'ACTIVE') throw ApiError.forbidden('Account is suspended');
+    if (!user) throw ApiError.unauthorized('Session expired or invalid, please sign in again');
+    if (user.status !== 'ACTIVE') throw ApiError.forbidden('Account is suspended or inactive');
 
     req.auth = {
       userId: String(user._id),
       restaurantId: String(user.restaurantId),
       role: user.role as Role,
       name: user.name,
+      clerkUserId: user.clerkUserId,
+      permissions: user.permissions ?? [],
     };
     next();
   } catch (err) {

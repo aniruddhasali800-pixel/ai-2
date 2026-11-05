@@ -26,6 +26,8 @@ export const LAYOUT: Layout[] = [
   { model: 'Counter', scope: 'global', folder: ['_index'], file: 'counters' },
   { model: 'StaffApplication', scope: 'global', folder: ['_index'], file: 'staff-applications' },
   { model: 'LoginCode', scope: 'global', folder: ['_index'], file: 'login-codes' },
+  { model: 'EmailCode', scope: 'global', folder: ['_index'], file: 'email-codes' },
+  { model: 'WebhookEvent', scope: 'global', folder: ['_index'], file: 'webhook-events', partitioned: true },
 
   { model: 'User', scope: 'restaurant', folder: [], file: 'login-ids' },
   { model: 'Category', scope: 'restaurant', folder: ['menu'], file: 'categories' },

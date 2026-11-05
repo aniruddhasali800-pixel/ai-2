@@ -7,7 +7,8 @@ import { handleDeliveryWebhook } from '../src/modules/integrations/delivery.webh
 import { createBill, startOnlinePayment } from '../src/services/billing.service';
 import { createOrder } from '../src/services/order.service';
 import { openSession } from '../src/services/table.service';
-import { BillModel, NotificationModel, OrderModel, PaymentModel, TableModel, TableSessionModel } from '../src/models';
+import { BillModel, NotificationModel, OrderModel, PaymentModel, TableModel, TableSessionModel, WebhookEventModel } from '../src/models';
+import { listWebhookEventsForRestaurant } from '../src/services/webhookEvent.service';
 
 beforeEach(async () => {
   await connectTestDb();
@@ -87,9 +88,117 @@ describe('payment gateway webhooks', () => {
     expect(session?.status).toBe('CLOSED');
     expect(session?.closedAt).toBeTruthy();
 
-    // Replayed webhooks are acknowledged without double-settling.
+    // A gateway that retries the same delivery gets a 200 so it stops, and finds nothing changed.
+    const beforeReplay = await PaymentModel.findById(payment._id).lean();
     const replay = await handleGatewayWebhook('MOCK', raw, hmacHex(env.PAYMENT_WEBHOOK_SECRET, raw));
-    expect(replay).toMatchObject({ ok: true, message: 'Already settled' });
+    expect(replay).toMatchObject({ ok: true, status: 200, message: 'Duplicate delivery ignored' });
+
+    const afterReplay = await PaymentModel.findById(payment._id).lean();
+    expect(afterReplay?.status).toBe('SUCCEEDED');
+    expect(afterReplay?.verifiedAt?.getTime()).toBe(beforeReplay?.verifiedAt?.getTime());
+    expect(await WebhookEventModel.countDocuments({ provider: 'MOCK', reference: payment.providerOrderId })).toBe(1);
+  });
+
+  it('refuses a body that was changed after it was signed', async () => {
+    const { bill } = await issuedBill();
+    const payment = await startOnlinePayment({
+      restaurantId: String(bill.restaurantId),
+      billId: String(bill._id),
+      actor: cashierActor('000000000000000000000009'),
+      method: 'UPI',
+    });
+
+    const raw = JSON.stringify({
+      event: 'payment.captured',
+      payload: { payment: { entity: { id: 'pay_test_2', order_id: payment.providerOrderId, amount: 21100 } } },
+    });
+    const signature = hmacHex(env.PAYMENT_WEBHOOK_SECRET, raw);
+
+    // The bytes a stranger sends are not the bytes that were signed, so the signature no longer fits them.
+    const tampered = raw.replace('21100', '1');
+    const rejected = await handleGatewayWebhook('MOCK', tampered, signature);
+    expect(rejected).toMatchObject({ ok: false, status: 401, message: 'Signature verification failed' });
+    expect((await PaymentModel.findById(payment._id).lean())?.status).toBe('PENDING');
+    expect((await BillModel.findById(bill._id).lean())?.paymentStatus).toBe('UNPAID');
+    // A message that never cleared the signature is not even recorded as a delivery.
+    expect(await WebhookEventModel.countDocuments({ provider: 'MOCK', reference: payment.providerOrderId })).toBe(0);
+  });
+
+  it('acts on one event id once, even when the sender re-sends it in other bytes', async () => {
+    const { bill } = await issuedBill();
+    const payment = await startOnlinePayment({
+      restaurantId: String(bill.restaurantId),
+      billId: String(bill._id),
+      actor: cashierActor('000000000000000000000010'),
+      method: 'UPI',
+    });
+
+    const body = (attempt: string) =>
+      JSON.stringify({
+        event: 'payment.captured',
+        event_id: 'evt_shared_1',
+        payload: { payment: { entity: { id: `pay_${attempt}`, order_id: payment.providerOrderId } } },
+      });
+
+    const first = await handleGatewayWebhook('MOCK', body('a'), hmacHex(env.PAYMENT_WEBHOOK_SECRET, body('a')));
+    expect(first.ok).toBe(true);
+    expect((await PaymentModel.findById(payment._id).lean())?.providerPaymentId).toBe('pay_a');
+
+    // A retry that restamps the payment id but keeps the event id is still the same event.
+    const second = await handleGatewayWebhook('MOCK', body('b'), hmacHex(env.PAYMENT_WEBHOOK_SECRET, body('b')));
+    expect(second).toMatchObject({ ok: true, message: 'Duplicate delivery ignored' });
+    expect((await PaymentModel.findById(payment._id).lean())?.providerPaymentId).toBe('pay_a');
+  });
+
+  it('keeps a delivery that named no payment out of the ledger', async () => {
+    const raw = JSON.stringify({ event: 'payment.captured', event_id: 'evt_orphan_1', payload: { payment: { entity: {} } } });
+    const result = await handleGatewayWebhook('MOCK', raw, hmacHex(env.PAYMENT_WEBHOOK_SECRET, raw));
+    expect(result).toMatchObject({ ok: false, status: 400 });
+    // Nothing was acted on, so nothing is filed: the claim is given back rather than left as a
+    // reservation, and a message that named no payment belongs to no tenant's review list.
+    expect(await WebhookEventModel.countDocuments({ eventId: 'event:evt_orphan_1' })).toBe(0);
+    expect(await listWebhookEventsForRestaurant('000000000000000000000001')).toEqual([]);
+  });
+
+  it('records the outcome of a delivery it accepted', async () => {
+    const { bill } = await issuedBill();
+    const payment = await startOnlinePayment({
+      restaurantId: String(bill.restaurantId),
+      billId: String(bill._id),
+      actor: cashierActor('000000000000000000000011'),
+      method: 'UPI',
+    });
+    const raw = JSON.stringify({
+      event: 'payment.captured',
+      payload: { payment: { entity: { id: 'pay_test_3', order_id: payment.providerOrderId } } },
+    });
+    await handleGatewayWebhook('MOCK', raw, hmacHex(env.PAYMENT_WEBHOOK_SECRET, raw));
+
+    const ledger = await listWebhookEventsForRestaurant(String(bill.restaurantId));
+    expect(ledger).toHaveLength(1);
+    expect(ledger[0]).toMatchObject({ provider: 'MOCK', event: 'payment.captured', reference: payment.providerOrderId });
+    expect(ledger[0]?.outcome).toBe('accepted:200');
+    expect(ledger[0]).not.toHaveProperty('rawBody');
+  });
+
+  it('gives the claim back when the event was about a payment that does not exist', async () => {
+    const raw = JSON.stringify({
+      event: 'payment.captured',
+      payload: { payment: { entity: { id: 'pay_ghost', order_id: 'order_never_issued' } } },
+    });
+    const result = await handleGatewayWebhook('MOCK', raw, hmacHex(env.PAYMENT_WEBHOOK_SECRET, raw));
+    expect(result).toMatchObject({ ok: false, status: 404 });
+    // The gateway will retry, and a reservation left standing would turn that retry into a silent drop.
+    expect(await WebhookEventModel.countDocuments({ provider: 'MOCK', reference: 'order_never_issued' })).toBe(0);
+  });
+
+  it('will not fail a payment it cannot point at', async () => {
+    const raw = JSON.stringify({
+      event: 'payment.failed',
+      payload: { payment: { entity: { error_description: 'Payment declined by bank' } } },
+    });
+    const result = await handleGatewayWebhook('MOCK', raw, hmacHex(env.PAYMENT_WEBHOOK_SECRET, raw));
+    expect(result).toMatchObject({ ok: false, status: 400 });
   });
 
   it('records failures without touching the bill', async () => {
@@ -152,6 +261,22 @@ describe('delivery partner webhooks', () => {
     });
     expect(result).toMatchObject({ ok: false, status: 400 });
     expect(result.message).toContain('?rid=');
+  });
+
+  it('refuses a signed body whose contents were swapped afterwards', async () => {
+    const diner = await makeDiner();
+    const raw = swiggyPayload('sw-tampered');
+    const signature = hmacHex(env.SWIGGY_WEBHOOK_SECRET, raw);
+
+    const result = await handleDeliveryWebhook({
+      provider: 'swiggy',
+      rawBody: raw.replace('"quantity":3', '"quantity":30'),
+      signature,
+      restaurantId: diner.restaurantId,
+    });
+    expect(result).toMatchObject({ ok: false, status: 401 });
+    expect(await OrderModel.countDocuments({ restaurantId: diner.restaurantId, source: 'SWIGGY' })).toBe(0);
+    expect(await WebhookEventModel.countDocuments({ provider: 'SWIGGY' })).toBe(0);
   });
 
   it('ingests a signed Swiggy order exactly once', async () => {

@@ -128,11 +128,18 @@ export class Collection {
     const now = new Date();
     if (!(doc.createdAt instanceof Date)) doc.createdAt = doc.createdAt ? new Date(String(doc.createdAt)) : now;
     doc.updatedAt = now;
-    await this.checkUnique(doc, MISSING);
     return doc;
   }
 
-  private async checkUnique(candidate: Doc, except: unknown): Promise<void> {
+  /**
+   * Refuses a candidate that already has a neighbour on a unique index.
+   *
+   * Synchronous on purpose: the caller that reserves a key runs this and the map write in the same turn,
+   * and any `await` between them is a gap wide enough for two concurrent inserts of the same key to both
+   * pass the check and both land — which is how a duplicated webhook delivery or a second order with the
+   * same partner id gets into the archive.
+   */
+  private checkUnique(candidate: Doc, except: unknown): void {
     for (const index of this.descriptor.uniqueIndexes()) {
       const values = index.paths.map((path) => candidate[path]);
       if (values.some((v) => v === undefined)) continue;
@@ -150,9 +157,12 @@ export class Collection {
   }
 
   async insert(payload: Doc): Promise<Doc> {
-    const doc = await this.store(await this.build(payload));
-    if (this.onCreated) await this.onCreated(doc);
-    return doc;
+    const doc = await this.build(payload);
+    // Nothing is awaited between the check and the write, so one key can only ever be taken once.
+    this.checkUnique(doc, MISSING);
+    const stored = await this.store(doc);
+    if (this.onCreated) await this.onCreated(stored);
+    return stored;
   }
 
   /** Puts an already-cast document into the map and onto the drive. */
@@ -209,7 +219,7 @@ export class Collection {
       const saved = draft.toObject({ versionKey: false }) as Doc;
       saved._id = previous._id;
       saved.createdAt = previous.createdAt;
-      await this.checkUnique(saved, id);
+      this.checkUnique(saved, id);
       this.replaceInMemory(id, saved);
       await this.persist(saved, previous);
       return hydrated;
@@ -310,19 +320,26 @@ export class Collection {
     }
     let modified = 0;
     const changed: Doc[] = [];
+    const nexts: Doc[] = [];
     for (const doc of hits) {
       const before = clone(doc);
-      applyUpdate(doc, clone(update));
-      if (JSON.stringify(serialize(this.descriptor, before)) !== JSON.stringify(serialize(this.descriptor, doc))) {
+      const next = clone(doc);
+      applyUpdate(next, clone(update));
+      if (JSON.stringify(serialize(this.descriptor, before)) !== JSON.stringify(serialize(this.descriptor, next))) {
         // `timestamps: false` is how a caller rewrites history without the record looking like it
         // changed right now, which is exactly what seeding last week's orders has to do.
-        if (options.timestamps !== false) doc.updatedAt = new Date();
+        if (options.timestamps !== false) next.updatedAt = new Date();
         modified += 1;
         changed.push(before);
       }
+      // Checked against the candidate, before the working copy is touched: an update that breaks a
+      // unique index has to leave the record exactly as it was, because the whole file is rewritten
+      // from memory on the next write — a rejected value left in place would get flushed then.
+      this.checkUnique(next, this.key(doc._id));
+      nexts.push(next);
     }
-    for (const doc of hits) await this.checkUnique(doc, this.key(doc._id));
-    if (modified) await this.persist(...hits, ...changed);
+    nexts.forEach((next) => this.replaceInMemory(this.key(next._id), next));
+    if (modified) await this.persist(...nexts, ...changed);
     return { acknowledged: true, matchedCount: hits.length, modifiedCount: modified, upsertedCount: 0, upsertedId: null, n: hits.length, nModified: modified };
   }
 
@@ -347,11 +364,14 @@ export class Collection {
         return o.lean || leanResult ? this.plain(created) : this.hydrate(created);
       }
       const before = clone(target);
-      applyUpdate(target, clone(update));
-      target.updatedAt = new Date();
-      await this.checkUnique(target, this.key(target._id));
-      await this.persist(target, before);
-      const chosen = wantsNew ? target : before;
+      const next = clone(target);
+      applyUpdate(next, clone(update));
+      next.updatedAt = new Date();
+      // Same reason as in `write`: a value that breaks a unique index must never reach the working copy.
+      this.checkUnique(next, this.key(target._id));
+      this.replaceInMemory(this.key(target._id), next);
+      await this.persist(next, before);
+      const chosen = wantsNew ? next : before;
       return o.lean || leanResult ? this.plain(chosen) : this.hydrate(chosen);
     });
   }

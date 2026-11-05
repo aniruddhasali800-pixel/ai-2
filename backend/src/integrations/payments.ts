@@ -1,4 +1,4 @@
-import { env } from '../config/env';
+import { env, webhookSigningKeys, type WebhookSecretName } from '../config/env';
 import { hmacHex, randomToken, safeEqual } from '../utils/tokens';
 import { billServiceConfig, billServiceSecret, createBillIntent } from './billService';
 import type { PaymentMethod } from '../types/constants';
@@ -26,6 +26,17 @@ export interface PaymentGateway {
   verifyWebhook(rawBody: string, signature: string): boolean;
 }
 
+/**
+ * Whether a body carries the signature one of this provider's allowed keys produces.
+ *
+ * Every candidate is compared with `safeEqual` rather than `===`, so a forgery is never graded on how
+ * many leading bytes it got right, and a blank key never appears in the list — HMAC under an empty key
+ * is a value anybody can compute, which would sign everything and nothing.
+ */
+function matchesAnyKey(name: WebhookSecretName, rawBody: string, signature: string): boolean {
+  return webhookSigningKeys(name).some((secret) => safeEqual(hmacHex(secret, rawBody), signature));
+}
+
 /** Development gateway: intents are created instantly and webhooks are HMAC-signed. */
 const mockGateway: PaymentGateway = {
   id: 'MOCK',
@@ -41,7 +52,13 @@ const mockGateway: PaymentGateway = {
     return { providerRefundId: `mockrf_${randomToken(8)}_${Math.round(amount * 100)}` };
   },
   verifyWebhook(rawBody, signature) {
-    return hmacHex(env.PAYMENT_WEBHOOK_SECRET, rawBody) === signature;
+    // An empty key would sign everything and nothing: HMAC over '' is a value anybody can compute, so
+    // a host that cleared this secret has to reject deliveries rather than accept forgeries. That is
+    // what `matchesAnyKey` guarantees — a blank never signs for anyone, and a retiring key joins the
+    // list only while a rotation is genuinely running.
+    // `safeEqual` rather than `===`: comparing a digest byte by byte leaks how many bytes matched,
+    // and a gateway signature is exactly the kind of secret an attacker gets to retry.
+    return matchesAnyKey('PAYMENT_WEBHOOK_SECRET', rawBody, signature);
   },
 };
 
@@ -81,9 +98,10 @@ const razorpayGateway: PaymentGateway = {
     return { providerRefundId: body.id };
   },
   verifyWebhook(rawBody, signature) {
-    const secret = env.RAZORPAY_WEBHOOK_SECRET;
-    if (!secret) return false;
-    return hmacHex(secret, rawBody) === signature;
+    // Razorpay signs with the secret named on the webhook endpoint, and during a rotation the endpoint
+    // is re-pointed while deliveries queued under the old key are still being retried — for a day, at
+    // increasing spacing. Both keys are therefore candidates for exactly that window.
+    return matchesAnyKey('RAZORPAY_WEBHOOK_SECRET', rawBody, signature);
   },
 };
 

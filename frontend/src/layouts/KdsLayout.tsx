@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Navigate, Outlet, useNavigate } from 'react-router-dom';
 import { ChefHat, Flame, LayoutDashboard, LogOut, RefreshCw } from 'lucide-react';
-import { useAuth } from '../store/auth';
+import { useAuth, can } from '../store/auth';
+import { homeFor } from '../pages/Login';
 import { LiveChip } from './AppShell';
 import { invalidate } from '../lib/query';
 import { clockTime } from '../lib/format';
@@ -17,7 +18,17 @@ export function KdsLayout() {
 
   if (!ready) return null;
   if (!user) return <Navigate to="/login" replace />;
-  if (user.role !== 'KITCHEN' && user.role !== 'MANAGER' && user.role !== 'OWNER') return <Navigate to="/app" replace />;
+
+  const isKitchenAuthorized =
+    user.role === 'KITCHEN' ||
+    user.role === 'COOK' ||
+    user.role === 'MANAGER' ||
+    user.role === 'OWNER' ||
+    can(user.role, 'kitchen:operate');
+
+  if (!isKitchenAuthorized) {
+    return <Navigate to={homeFor(user.role)} replace />;
+  }
 
   return (
     <div className="flex min-h-screen flex-col bg-ink-950 text-ink-100">
