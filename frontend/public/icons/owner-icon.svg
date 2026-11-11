@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none">
+  <defs>
+    <linearGradient id="og" x1="0" y1="0" x2="128" y2="128" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#8b5cf6"/>
+      <stop offset="100%" stop-color="#5b21b6"/>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="28" fill="url(#og)"/>
+  <!-- Executive Shield / Command silhouette -->
+  <path d="M64 26l32 12v26c0 24-14 38-32 44-18-6-32-20-32-44V38l32-12z" fill="#ffffff" fill-opacity="0.95"/>
+  <path d="M64 36l22 8v18c0 17-10 27-22 31-12-4-22-14-22-31V44l22-8z" fill="#5b21b6" fill-opacity="0.85"/>
+  <path d="M54 62l8 8 16-16" stroke="#ffffff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

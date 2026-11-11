@@ -1,0 +1,65 @@
+{
+  "id": "/",
+  "name": "Sizzle — Order food",
+  "short_name": "Sizzle",
+  "description": "Order tandoor food, watch the kitchen fire your tickets and pay in seconds. Sizzle is the restaurant OS behind the Saffron & Smoke demo in Pune.",
+  "lang": "en-IN",
+  "dir": "ltr",
+  "start_url": "/eat",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui", "browser"],
+  "orientation": "any",
+  "background_color": "#1c1917",
+  "theme_color": "#1c1917",
+  "categories": ["food", "restaurant", "shopping", "lifestyle"],
+  "icons": [
+    {
+      "src": "/icons/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Order food",
+      "short_name": "Order",
+      "description": "Pickup or home delivery from your kitchen",
+      "url": "/eat",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Track an order",
+      "short_name": "Track",
+      "description": "Follow the ticket you are waiting on",
+      "url": "/eat#track",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Staff sign in",
+      "short_name": "Staff",
+      "description": "Login for kitchen, floor and owner consoles",
+      "url": "/login",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    }
+  ]
+}

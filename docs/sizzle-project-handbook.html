@@ -1,0 +1,826 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Sizzle — Project Handbook</title>
+<style>
+  @page { size: A4; margin: 16mm 14mm 18mm 14mm; }
+  :root { --ink:#1c1917; --muted:#57534e; --line:#d6d3d1; --brand:#c2410c; --code:#f5f5f4; }
+  * { box-sizing: border-box; }
+  body { font-family: "Segoe UI", -apple-system, "Helvetica Neue", Arial, sans-serif; color: var(--ink);
+         font-size: 10.2pt; line-height: 1.45; margin: 0; }
+  h1 { font-size: 25pt; line-height: 1.12; margin: 0 0 4mm; letter-spacing: -0.4pt; }
+  h2 { font-size: 14.5pt; margin: 9mm 0 2.5mm; padding-bottom: 1.5mm; border-bottom: 1.5pt solid var(--ink);
+       break-after: avoid; }
+  h3 { font-size: 11.6pt; margin: 6mm 0 1.5mm; break-after: avoid; }
+  h4 { font-size: 10.4pt; margin: 4mm 0 1mm; color: var(--muted); text-transform: uppercase;
+       letter-spacing: 0.5pt; break-after: avoid; }
+  p { margin: 0 0 2.6mm; }
+  ul, ol { margin: 0 0 3mm; padding-left: 5.5mm; }
+  li { margin-bottom: 1.1mm; }
+  code, pre, table.mono td:first-child { font-family: "Cascadia Mono", Consolas, "Courier New", monospace; }
+  code { background: var(--code); padding: 0.3mm 1mm; border-radius: 1px; font-size: 9.2pt; }
+  pre { background: var(--code); border-left: 2.5pt solid var(--brand); padding: 3mm 3.5mm; font-size: 7.7pt;
+        line-height: 1.4; white-space: pre; overflow: hidden; page-break-inside: avoid; }
+  table { width: 100%; border-collapse: collapse; margin: 0 0 4mm; font-size: 9.1pt; }
+  th { text-align: left; background: var(--ink); color: #fff; padding: 1.6mm 2mm; font-weight: 600;
+       font-size: 8.7pt; letter-spacing: 0.2pt; }
+  td { padding: 1.4mm 2mm; border-bottom: 0.4pt solid var(--line); vertical-align: top; }
+  tr { break-inside: avoid; }
+  tbody tr:nth-child(even) { background: #fafaf9; }
+  .cover { padding-top: 22mm; }
+  .kicker { color: var(--brand); font-weight: 700; letter-spacing: 1.6pt; text-transform: uppercase;
+            font-size: 8.6pt; margin-bottom: 4mm; }
+  .sub { font-size: 12.5pt; color: var(--muted); max-width: 130mm; }
+  .meta { margin-top: 16mm; font-size: 9pt; color: var(--muted); border-top: 0.4pt solid var(--line);
+          padding-top: 3mm; }
+  .toc { columns: 2; column-gap: 8mm; font-size: 9.4pt; }
+  .toc div { margin-bottom: 1.2mm; }
+  .toc span { color: var(--muted); }
+  .note { border-left: 2.5pt solid var(--brand); background: #fff7ed; padding: 2.4mm 3mm; margin: 0 0 4mm;
+          font-size: 9.4pt; page-break-inside: avoid; }
+  .note b { color: var(--brand); }
+  .pb { page-break-before: always; }
+  .small { font-size: 8.8pt; color: var(--muted); }
+  .tag { display: inline-block; font-size: 7.6pt; letter-spacing: 0.4pt; text-transform: uppercase;
+         border: 0.5pt solid var(--muted); color: var(--muted); padding: 0.3mm 1.4mm; border-radius: 2px; }
+  h2 .n { color: var(--brand); margin-right: 2mm; }
+  a { color: var(--ink); text-decoration: none; border-bottom: 0.4pt solid var(--line); }
+  footer { position: running(f); }
+</style>
+</head>
+<body>
+
+<section class="cover">
+  <div class="kicker">Engineering handbook</div>
+  <h1>Sizzle — Restaurant OS<br />how the project is built and how it works</h1>
+  <p class="sub">A single-tenant demo of a full restaurant floor: guest QR ordering, a kitchen pass, a waiter
+  floor, a counter with a cash drawer, bookings, inventory, hiring and owner reports — one TypeScript codebase,
+  one API, one browser client, realtime throughout.</p>
+  <p class="sub">This document is a map of the code as it stands: the folder tree, the request path, the data
+  model with every collection and index, the state machines, the permission grid, the realtime contract, the
+  build and deploy chain, and the rules that were chosen deliberately (and why). Read it before changing
+  anything that another screen depends on.</p>
+  <div class="meta">
+    Repository <code>github.com/aniruddhasali800-pixel/ai</code> · branch <code>main</code><br />
+    Tenant in the seed: <b>Saffron &amp; Smoke</b>, Koregaon Park, Pune (<code>saffron-and-smoke</code>)<br />
+    Live: <code>https://smart.restaurant.aniruddhasali.in</code> · API behind it: <code>https://ai-1-hsus.onrender.com</code><br />
+    Generated 4 October 2026, after commit <code>bbfa7bb</code>
+  </div>
+</section>
+
+<section class="pb">
+<h2><span class="n">01</span>Contents</h2>
+<div class="toc">
+  <div><b>02</b> What the product does <span>· one service period</span></div>
+  <div><b>03</b> Languages, runtimes and libraries <span>· and why each one</span></div>
+  <div><b>04</b> System design <span>· topology, request path, realtime</span></div>
+  <div><b>05</b> Repository layout <span>· annotated tree</span></div>
+  <div><b>06</b> Backend anatomy <span>· boot, middleware, modules, services</span></div>
+  <div><b>07</b> HTTP surface <span>· every route and its guard</span></div>
+  <div><b>08</b> Data management <span>· 19 collections, indexes, counters, TTL</span></div>
+  <div><b>09</b> State machines <span>· order, table, session, booking</span></div>
+  <div><b>10</b> The two floor rules <span>· one fire, one label</span></div>
+  <div><b>11</b> Money <span>· pricing, bills, UPI, payments</span></div>
+  <div><b>12</b> Auth, sessions and permissions</div>
+  <div><b>13</b> Realtime contract <span>· rooms and event names</span></div>
+  <div><b>14</b> Frontend anatomy <span>· entries, routes, state, UI system</span></div>
+  <div><b>15</b> PWA, QR codes and installables</div>
+  <div><b>16</b> Configuration reference</div>
+  <div><b>17</b> Build, test and deploy</div>
+  <div><b>18</b> Runbook <span>· symptoms to files</span></div>
+  <div><b>19</b> Deliberate mocks, limits and debts</div>
+  <div><b>20</b> Glossary</div>
+</div>
+</section>
+
+<section class="pb">
+<h2><span class="n">02</span>What the product does</h2>
+<p>Sizzle is the operating system for one restaurant floor. Six kinds of person touch it, and the point of the
+build is that they are all looking at the same rows in the same database at the same second.</p>
+<table>
+  <thead><tr><th style="width:22%">Who</th><th style="width:30%">Where they live</th><th>What they can do</th></tr></thead>
+  <tbody>
+    <tr><td>Guest at a table</td><td><code>/t/&lt;tableToken&gt;</code> from a printed sticker, then <code>/s/&lt;publicToken&gt;</code></td><td>Read the menu, seat themself, punch orders, watch each ticket move, raise a call (water, cutlery, bill), pay a UPI charge, see the GST bill</td></tr>
+    <tr><td>Guest with the installed app</td><td><code>/eat/&lt;slug&gt;</code>, <code>/track/&lt;token&gt;</code></td><td>Pickup and delivery orders, live ticket tracking, checkout</td></tr>
+    <tr><td>Waiter</td><td><code>/floor</code> — floor map, new order, table ticket</td><td>Seat and open tables, punch orders for any table, run food, ask the counter for a bill, clear a table, answer “where is my order”</td></tr>
+    <tr><td>Kitchen</td><td><code>/kds</code> — four-column pass</td><td>Accept, start, mark ready — per station, nothing else</td></tr>
+    <tr><td>Cashier / counter</td><td><code>/pos</code> — bills and the request queue</td><td>Issue bills, take cash and online payments, settle and refund, confirm a table clear</td></tr>
+    <tr><td>Owner / manager</td><td><code>/app</code> — dashboard, orders, tables, menu, bookings, inventory, staff, reports, delivery, audit, settings</td><td>Everything operational; only the owner writes restaurant settings and integrations</td></tr>
+  </tbody>
+</table>
+
+<h3>One service period, end to end</h3>
+<ol>
+  <li>A guest scans the sticker on table <code>M3</code>. <code>GET /api/public/menu/:tableToken</code> returns the menu plus a session for the table; the guest orders two dishes. <code>POST /api/public/session/:token/orders</code> creates an <code>Order</code> with <code>source: DINE_IN_QR</code>.</li>
+  <li>The order row is priced on the server (<code>pricing.service.ts</code>), saved, and broadcast: <code>order.created</code> to <code>kitchen:&lt;rid&gt;</code> and <code>restaurant:&lt;rid&gt;</code>, a <code>Notification</code> to the waiter room, and the table flips to <code>ORDERING</code>.</li>
+  <li>The kitchen taps Accept, then Start, then Ready on <code>/kds</code>. Each is <code>PATCH /api/kitchen/orders/:id/status</code>, guarded by <code>kitchen:operate</code> and by <code>ORDER_TRANSITIONS</code>. Recipe stock is deducted once, at the first <code>PREPARING</code>.</li>
+  <li>Any waiter sees <code>FOOD_READY</code> on the floor map, walks it out and marks Served — <code>orders:status</code> is held by waiters, so this is allowed.</li>
+  <li>The guest asks for the bill. That is a <code>CustomerRequest</code> of type <code>BILL</code> with <code>raisedByUserId</code> set. The counter accepts it, which issues one <code>Bill</code> for the table’s unbilled orders; the bill and its UPI QR go back to the waiter who asked, not to whoever happens to hold the table.</li>
+  <li>Cash is tendered at the table, so the waiter raises <code>CASH_PAYMENT</code>; the counter records the payment, and only then may the table be cleared. <code>TABLE_CLEAR</code> exists so the floor cannot silently free a seat with money still on it.</li>
+</ol>
+<div class="note"><b>Why the whole thing is realtime.</b> Every one of those steps is somebody else’s screen. A
+toast that never appears is a dish that never leaves the pass, so notifications and socket invalidations are
+treated as function, not polish.</div>
+</section>
+
+<section class="pb">
+<h2><span class="n">03</span>Languages, runtimes and libraries</h2>
+<p>TypeScript everywhere, one language from the browser to the database query. Node.js 20+ on the server
+(<code>engines.node: &quot;&gt;= 20&quot;</code>), ES modules in both packages (<code>&quot;type&quot;: &quot;module&quot;</code>).</p>
+<h3>Backend — <code>backend/package.json</code></h3>
+<table>
+  <thead><tr><th style="width:26%">Dependency</th><th>What it is for here</th></tr></thead>
+  <tbody>
+    <tr><td><code>express</code> 4</td><td>HTTP app; routers per feature, mounted under <code>/api</code></td></tr>
+    <tr><td><code>mongoose</code></td><td>ODM for MongoDB; schemas in <code>src/models</code>, <code>lean()</code> reads everywhere in handlers</td></tr>
+    <tr><td><code>socket.io</code></td><td>Server push; rooms per restaurant, per role, per guest token (<code>src/realtime/</code>)</td></tr>
+    <tr><td><code>jsonwebtoken</code></td><td>Two token types: a 15-minute access JWT and a 7-day refresh JWT whose value is rotated per device</td></tr>
+    <tr><td><code>bcryptjs</code></td><td>Password hashes, refresh-token hashes (so a leaked array is unusable) and one-time login codes</td></tr>
+    <tr><td><code>zod</code></td><td>Two jobs: validating the environment once at boot (<code>config/env.ts</code>) and validating every request body (<code>middleware/validate.ts</code>)</td></tr>
+    <tr><td><code>cors</code>, <code>helmet</code>, <code>express-rate-limit</code>, <code>morgan</code>, <code>cookie-parser</code></td><td>Origin allowlist, security headers, throttles on public and auth routes, request log, cookie parsing</td></tr>
+    <tr><td><code>multer</code></td><td>Menu photo uploads to disk (<code>middleware/upload.ts</code>)</td></tr>
+    <tr><td><code>qrcode</code></td><td>PNG data-URLs for table codes, the app code, the staff code, a bill’s pay charge</td></tr>
+    <tr><td><code>dotenv</code></td><td>Loads <code>backend/.env</code> before the schema is parsed</td></tr>
+    <tr><td colspan="2"><span class="small">Dev only: <code>typescript</code>, <code>tsx</code> (dev server and seed), <code>tsup</code> (single-file bundle), <code>vitest</code> (tests), <code>mongodb-memory-server</code> (embedded database), <code>@types/*</code>.</span></td></tr>
+  </tbody>
+</table>
+<h3>Frontend — <code>frontend/package.json</code></h3>
+<table>
+  <thead><tr><th style="width:26%">Dependency</th><th>What it is for here</th></tr></thead>
+  <tbody>
+    <tr><td><code>react</code> / <code>react-dom</code> 19</td><td>UI runtime; <code>useSyncExternalStore</code> is how socket generations reach components</td></tr>
+    <tr><td><code>react-router-dom</code> 7</td><td>One <code>BrowserRouter</code> in <code>main.tsx</code>; all routes declared in <code>src/App.tsx</code></td></tr>
+    <tr><td><code>zustand</code> 5</td><td>Three stores: <code>auth</code> (persisted), <code>notifications</code>, <code>toasts</code></td></tr>
+    <tr><td><code>axios</code></td><td>One instance in <code>src/lib/api.ts</code> with the bearer interceptor and the single-flight refresh</td></tr>
+    <tr><td><code>socket.io-client</code></td><td>Singleton socket in <code>src/lib/socket.ts</code> with room replay on reconnect</td></tr>
+    <tr><td><code>jsqr</code></td><td>Decodes a QR through the camera in <code>src/lib/scan.ts</code> — staff never need a scanner app</td></tr>
+    <tr><td><code>lucide-react</code></td><td>Icon set</td></tr>
+    <tr><td><code>tailwindcss</code> 4 + <code>@tailwindcss/vite</code></td><td>Styling. CSS-first config: there is no <code>tailwind.config.js</code>; tokens live in <code>src/index.css</code> under <code>@theme</code></td></tr>
+    <tr><td colspan="2"><span class="small">Dev only: <code>vite</code> 8, <code>@vitejs/plugin-react</code>, <code>typescript</code>. Scripts: <code>dev</code>, <code>build</code> (<code>tsc -b &amp;&amp; vite build</code>), <code>preview</code>, <code>typecheck</code>.</span></td></tr>
+  </tbody>
+</table>
+<h3>Why these choices, in one line each</h3>
+<ul>
+  <li><b>Express + Mongoose over a framework.</b> The API is 18 small routers; a framework would buy structure this codebase already gets from <code>src/modules/&lt;feature&gt;/</code>.</li>
+  <li><b>MongoDB with an embedded server.</b> A demo that boots with <code>npm run dev</code> and no account is worth more than a correct one that needs Atlas first. <code>MONGODB_URI</code> switches to a real cluster when it is set.</li>
+  <li><b>A hand-rolled query cache</b> (<code>src/lib/query.ts</code>) instead of a data library: the cache is keyed by URL and invalidated by socket events, which is the whole requirement.</li>
+  <li><b>Hand-drawn SVG charts</b> (<code>src/components/charts.tsx</code>) instead of a charting dependency.</li>
+</ul>
+</section>
+
+<section class="pb">
+<h2><span class="n">04</span>System design</h2>
+<h3>Topology as deployed</h3>
+<pre>
+   phone / laptop browser
+            |
+            |  https://smart.restaurant.aniruddhasali.in      <- one address for pages AND data
+            |
+     +------v---------------------------------------------------+
+     |  Vercel (project "ai", root frontend/)                    |
+     |   static: /assets, /icons, /manifest, /sw.js, index+staff |
+     |   rewrites (before the SPA fallback):                     |
+     |     /api/*        -> https://ai-1-hsus.onrender.com/api/* |
+     |     /uploads/*    -> .../uploads/*                        |
+     |     /socket.io/*  -> .../socket.io/*                      |
+     |     /(.*)         -> /index.html                          |
+     +------+----------------------------------------------------+
+            |  plain HTTPS + long-polling
+     +------v----------------------------------------------------+
+     |  Render web service "sizzle"  (rootDir backend)           |
+     |   node dist/server.js  -> Express /api, Socket.IO, /uploads
+     |   build: npm install && npm run build                     |
+     |          (tsup bundle + frontend/dist via build-client)   |
+     |   embedded MongoDB in-container: .data/mongo              |
+     |   AUTO_SEED loads Saffron & Smoke into an empty database   |
+     +-----------------------------------------------------------+
+</pre>
+<p>Because the browser reaches both halves from the address it is standing on, the client is built with
+<code>VITE_API_URL=</code> empty: <code>API_ROOT</code> is <code>''</code>, calls go to relative <code>/api</code>,
+and no CORS hop exists for its own traffic. The old host <code>ai-ecru-kappa-14.vercel.app</code> is the same
+Vercel project, so it gets the same rewrites and keeps working — that matters because stickers were printed
+against it.</p>
+<div class="note"><b>One caveat worth knowing.</b> Vercel cannot upgrade a WebSocket through a rewrite, so
+Socket.IO settles on HTTP long polling on that domain. The client asks for <code>['websocket','polling']</code>,
+so a direct Render or laptop connection still upgrades. Nothing in the code depends on the transport.</div>
+
+<h3>The life of a request</h3>
+<ol>
+  <li><code>src/server.ts</code> creates the app, connects Mongo, starts the scheduler and attaches Socket.IO to the HTTP server.</li>
+  <li><code>createApp()</code> in <code>src/app.ts</code>: webhooks are mounted <em>before</em> <code>express.json()</code> because a signature must be verified against the raw body; then <code>helmet</code>, <code>cors</code>, morgan, JSON, the <code>/uploads</code> static mount, <code>Cache-Control: no-store</code> on <code>/api</code>, the routers, then the SPA fallback and the error handler last.</li>
+  <li><code>requireAuth</code> (<code>middleware/auth.ts</code>) verifies the access JWT, re-reads the user row and puts <code>{userId, restaurantId, role, name}</code> on <code>req.auth</code>. Scope always comes from the database, never from the token’s claims alone.</li>
+  <li><code>requirePermission('…')</code> or <code>requireRole(…)</code> (<code>middleware/rbac.ts</code>) resolves the role against <code>ROLE_PERMISSIONS</code> at request time, so editing the grid needs no reseed.</li>
+  <li><code>validate({ body })</code> parses a Zod schema; anything unknown is rejected before a handler runs.</li>
+  <li>The handler is wrapped in <code>asyncHandler</code>, so a rejected promise becomes <code>ApiError</code> and the error middleware answers <code>{ error: { code, message } }</code> with the right status.</li>
+  <li>Business rules live in <code>src/services/*</code>, not in the handler. A write that matters also emits: <code>emit.ts</code> pushes to rooms and <code>notification.service.ts</code> persists a <code>Notification</code> row so a screen that was closed still shows it later.</li>
+</ol>
+
+<h3>How a change reaches every other screen</h3>
+<pre>
+  service writes Mongo  ->  emit.toKitchen(rid, 'order.ready', payload)
+                        ->  notify({ recipientId })  ==  Notification row + 'notification:new' to user:&lt;uid&gt;
+  browser: socket.ts receives -> useRealtimeShell maps the event to invalidate('floor'), invalidate('kds')
+         -> lib/query.ts bumps a generation -> useQuery refetches -> component re-renders
+         -> toast in Toaster + bell badge for the human
+</pre>
+<p>That indirection is deliberate: a socket event says “something changed”, the data itself still comes from the
+same REST endpoint the screen loaded at boot. A missed event costs a stale row until the next 20-second refresh
+window; it cannot corrupt anything.</p>
+</section>
+
+<section class="pb">
+<h2><span class="n">05</span>Repository layout</h2>
+<pre>
+ai/
+├── backend/                       the API, and the deployable that also serves the client
+│   ├── src/
+│   │   ├── server.ts              boot: connect db, start scheduler, attach socket.io, listen
+│   │   ├── app.ts                 express app, mount order, SPA fallback, error handler
+│   │   ├── routes.ts              every router's mount prefix + the public surface
+│   │   ├── seed.ts                the demo tenant: staff, menu, tables, 14 days of history
+│   │   ├── config/                env.ts (zod env, origins, public base), db.ts (mongoose + embedded mongo)
+│   │   ├── middleware/            auth, rbac, validate, rateLimit, upload, error
+│   │   ├── models/                19 mongoose schemas + index.ts barrel + phoneMatch.ts
+│   │   ├── modules/&lt;feature&gt;/     one folder per bounded area; *.routes.ts is the HTTP face
+│   │   ├── services/              business rules: order, table, billing, pricing, upi, booking,
+│   │   │                          inventory, hiring, notification, report, audit, customerApp,
+│   │   │                          scheduler, mockCapture
+│   │   ├── realtime/              socket.ts (rooms, handshake), emit.ts (event names, helpers)
+│   │   ├── integrations/          payments.ts (mock + Razorpay), delivery.ts (Swiggy/Zomato/Website)
+│   │   ├── types/                 constants.ts (enums, ORDER_TRANSITIONS, ROLE_PERMISSIONS), express.d.ts
+│   │   └── utils/                 asyncHandler, httpError, money, phone, query, tokens
+│   ├── scripts/build-client.mjs   npm install &amp;&amp; build in ../frontend
+│   ├── tests/                     9 vitest suites + setup.ts + helpers.ts
+│   ├── .data/mongo                the embedded database's files (gitignored, survives restarts)
+│   └── uploads/                   multer target for menu photos (gitignored)
+├── frontend/                      the browser app; two HTML entries
+│   ├── index.html                 guest app  — "Sizzle"
+│   ├── staff.html                 staff app  — "Sizzle Staff"
+│   ├── src/
+│   │   ├── App.tsx                every route, every guard
+│   │   ├── main.tsx               ReactDOM root + service-worker registration
+│   │   ├── index.css              Tailwind v4 @theme tokens, shared classes, keyframes
+│   │   ├── layouts/               AppShell, StaffLayout, FloorLayout, KdsLayout, PosLayout
+│   │   ├── pages/                 app/ guest/ kitchen/ waiter/ pos/ owner/ + auth pages
+│   │   ├── components/            ui.tsx primitives, DataTable, QrScanner, UpiQr, Toaster,
+│   │   │                          NotificationBell, OperationsAppModal, charts, modals
+│   │   ├── hooks/                 useRealtimeShell, useInstallPrompt, useTitle
+│   │   ├── lib/                   api, socket, query, types, format, statusMaps, scan, jobs,
+│   │   │                          tracked, downloadQr, installShortcuts
+│   │   └── store/                 auth (persisted), notifications, toasts
+│   ├── public/                    manifest.webmanifest, manifest-staff.webmanifest, sw.js, icons/
+│   ├── scripts/make-icons.mjs     regenerates the PNG favicon set and maskable icons
+│   ├── vercel.json                the four rewrites (§04)
+│   └── .env / .env.production     dev needs nothing; production leaves VITE_API_URL empty
+├── render.yaml                    Render Blueprint: one web service, rootDir backend
+├── README.md                      run, LAN demo from a phone, env, deploy
+├── AUTH.md                        how a tester gets a session, with no committed password
+├── DEPLOYMENT.md                  host settings, environment names, deploy and reseed steps
+├── DEMO-CREDENTIALS.md            the seeded staff, their phone numbers, the guest links
+└── .gitignore                     .env, .data, uploads, dist, and the scratch files used while testing
+</pre>
+<p>Two habits are visible in the tree and worth keeping: a feature lives in <b>one</b> folder under
+<code>modules/</code> even when its rules reach into <code>services/</code>, and the client mirrors that split
+under <code>pages/</code> by persona rather than by URL.</p>
+</section>
+
+<section class="pb">
+<h2><span class="n">06</span>Backend anatomy</h2>
+<h3>Boot sequence (<code>src/server.ts</code>)</h3>
+<ol>
+  <li>Parse and validate the environment. A bad variable stops the process with the field errors printed.</li>
+  <li>In production, refuse to start on a missing <code>MONGODB_URI</code> or a development-default token secret.</li>
+  <li>Connect Mongoose. With no URI, start <code>mongodb-memory-server</code> on <code>.data/mongo</code> (tests use <code>.data/mongo-test</code>) and connect to it. Only one process may hold that directory — see §19.</li>
+  <li>If <code>AUTO_SEED</code> is not <code>false</code> and there are zero restaurants, load the demo tenant.</li>
+  <li>Bind HTTP, mount Socket.IO on the same server, start the scheduler.</li>
+</ol>
+<h3>Modules under <code>src/modules/</code></h3>
+<table>
+  <thead><tr><th style="width:20%">Folder</th><th style="width:16%">Mounted at</th><th>Responsibility</th></tr></thead>
+  <tbody>
+    <tr><td><code>auth</code></td><td><code>/api/auth</code></td><td>Register, login, OTP request/verify, refresh, logout, <code>GET /me</code>, change password. Owns <code>otp.service.ts</code>.</td></tr>
+    <tr><td><code>public</code></td><td><code>/api/public</code></td><td>The unauthenticated guest surface, rate-limited separately: menu by table token, session, bill, bookings availability, hiring application, the installed-app endpoints under <code>/apps/…</code>.</td></tr>
+    <tr><td><code>restaurants</code></td><td><code>/api/restaurants</code></td><td>Own tenant record, the counter <code>/app-qr</code> and the <code>/staff-qr</code> codes, settings patch.</td></tr>
+    <tr><td><code>tables</code></td><td><code>/api/tables</code></td><td>Floor plan CRUD, status, QR generation and regeneration, waiter assignment, <code>/my-map</code>.</td></tr>
+    <tr><td><code>orders</code></td><td><code>/api/orders</code></td><td>Staff-side ordering, timeline, status transitions.</td></tr>
+    <tr><td><code>kitchen</code></td><td><code>/api/kitchen</code></td><td>The pass: board, per-station filter, stats, status changes.</td></tr>
+    <tr><td><code>waiters</code></td><td><code>/api/waiters</code></td><td>Floor operations: claim/seat/clear/transfer, the customer-request queue with accept, collect and settle, shift summary, live orders.</td></tr>
+    <tr><td><code>billing</code></td><td><code>/api/billing</code></td><td>Issue a bill, read it, cash and online settlement, print count.</td></tr>
+    <tr><td><code>payments</code></td><td><code>/api/payments</code></td><td>Payment records, refund, and the mock <code>simulate</code> capture; webhooks in <code>webhook.routes.ts</code>.</td></tr>
+    <tr><td><code>menu</code>, <code>uploads</code></td><td><code>/api/menu</code>, <code>/api/uploads</code></td><td>Categories, dishes, add-ons, prices, photos.</td></tr>
+    <tr><td><code>inventory</code></td><td><code>/api/inventory</code></td><td>Stock items, low-stock list, adjustments, transaction ledger.</td></tr>
+    <tr><td><code>bookings</code></td><td><code>/api/bookings</code></td><td>Reservations, availability computation, status lifecycle.</td></tr>
+    <tr><td><code>staff</code></td><td><code>/api/staff</code></td><td>Team CRUD, password reset, hiring applications and approval.</td></tr>
+    <tr><td><code>notifications</code></td><td><code>/api/notifications</code></td><td>The bell: list, mark read, mark all, delete.</td></tr>
+    <tr><td><code>reports</code></td><td><code>/api/reports</code></td><td>Dashboard, sales, product mix, payments, operations.</td></tr>
+    <tr><td><code>audit</code></td><td><code>/api/audit</code></td><td>Read-only audit trail.</td></tr>
+    <tr><td><code>integrations</code></td><td><code>/api/integrations</code></td><td>Delivery partner adapters, push an order out, pull partner orders, simulate a partner; webhook receiver for delivery.</td></tr>
+  </tbody>
+</table>
+<h3>Middleware, in the order it matters</h3>
+<ul>
+  <li><code>auth.ts</code> — bearer only; 401 messages are explicit (“Please sign in to continue”, “Session expired, please sign in again”).</li>
+  <li><code>rbac.ts</code> — <code>requirePermission</code>, <code>requireRole</code>; a mismatch is 403 with the permission named.</li>
+  <li><code>validate.ts</code> — Zod schema against <code>body</code>/<code>query</code>/<code>params</code>; the parsed value replaces the raw one.</li>
+  <li><code>rateLimit.ts</code> — separate limiters for auth attempts, general public traffic and public writes.</li>
+  <li><code>upload.ts</code> — multer disk storage, jpeg/png/webp/gif, 5 MB cap, filename <code>&lt;timestamp&gt;-&lt;token6&gt;&lt;ext&gt;</code>.</li>
+  <li><code>error.ts</code> — <code>ApiError</code> to status + <code>{error:{code,message}}</code>; anything unexpected logs and answers 500 without leaking internals.</li>
+</ul>
+</section>
+
+<section class="pb">
+<h2><span class="n">07</span>HTTP surface</h2>
+<p>All paths below are relative to <code>/api</code>. “Auth” means a valid access token; the permission in the
+last column is what <code>requirePermission</code> checks.</p>
+<h3>Public — no token, rate-limited</h3>
+<table>
+  <thead><tr><th style="width:9%">Method</th><th style="width:38%">Path</th><th>Purpose</th></tr></thead>
+  <tbody>
+    <tr><td>GET</td><td><code>/health</code></td><td>Liveness; warms a sleeping service</td></tr>
+    <tr><td>GET</td><td><code>/public/menu/:tableToken</code></td><td>Menu + table for a scanned sticker</td></tr>
+    <tr><td>GET</td><td><code>/public/session/:publicToken</code></td><td>A guest’s running session</td></tr>
+    <tr><td>POST</td><td><code>/public/table-sessions</code>, <code>/public/apps/:slug/sit</code></td><td>Seat a guest at a free table</td></tr>
+    <tr><td>POST</td><td><code>/public/session/:publicToken/orders</code>, <code>…/requests</code></td><td>Order from a table; raise a call</td></tr>
+    <tr><td>GET</td><td><code>/public/bill/:billToken</code></td><td>The guest’s bill and its UPI charge</td></tr>
+    <tr><td>GET</td><td><code>/public/restaurant/:idOrSlug</code>, <code>/public/apps/restaurants</code>, <code>/public/apps/menu/:slug</code>, <code>/public/apps/orders/:trackingToken</code></td><td>The installed guest app’s reads</td></tr>
+    <tr><td>POST</td><td><code>/public/apps/orders/:slug</code>, <code>…/checkout</code>, <code>…/checkout/confirm</code></td><td>Pickup/delivery order and checkout</td></tr>
+    <tr><td>GET</td><td><code>/public/bookings/availability</code>, <code>/public/hiring/:slug</code></td><td>Slots for a party; open roles on the apply page</td></tr>
+    <tr><td>POST</td><td><code>/public/bookings</code>, <code>/public/applications/:slug</code></td><td>Book a table; apply for a floor job</td></tr>
+    <tr><td>POST</td><td><code>/payments/webhook/:provider</code>, <code>/integrations/webhook/:provider</code></td><td>Signature-verified; mounted before JSON parsing</td></tr>
+  </tbody>
+</table>
+<h3>Authenticated</h3>
+<table>
+  <thead><tr><th style="width:9%">Method</th><th style="width:38%">Path</th><th>Guard / note</th></tr></thead>
+  <tbody>
+    <tr><td>POST</td><td><code>/auth/register</code>, <code>/auth/login</code>, <code>/auth/otp/request</code>, <code>/auth/otp/verify</code>, <code>/auth/refresh</code></td><td>Limited by the auth rate limiter; no token needed</td></tr>
+    <tr><td>GET</td><td><code>/auth/me</code> · POST <code>/auth/logout</code>, <code>/auth/change-password</code></td><td>Auth; logout accepts an optional <code>refreshToken</code> to end one device</td></tr>
+    <tr><td>GET/PATCH</td><td><code>/restaurants</code>, <code>/restaurants/app-qr</code>, <code>/restaurants/staff-qr</code></td><td><code>settings:write</code>, <code>settings:write</code>, <code>settings:read</code> — a manager may open the staff code</td></tr>
+    <tr><td>GET/POST/PATCH/DELETE</td><td><code>/tables</code>, <code>/tables/:id</code>, <code>/tables/:id/status</code>, <code>/tables/:id/assign-waiter</code>, <code>/tables/:id/regenerate-qr</code>, <code>/tables/:id/qr</code>, <code>/tables/my-map</code></td><td><code>tables:read</code> / <code>tables:write</code></td></tr>
+    <tr><td>GET/POST/PATCH</td><td><code>/orders</code>, <code>/orders/:id</code>, <code>/orders/:id/timeline</code>, <code>/orders/:id/items</code>, <code>/orders/:id/status</code></td><td><code>orders:read</code> / <code>orders:write</code> / <code>orders:status</code> — KITCHEN has none of the last two</td></tr>
+    <tr><td>GET/PATCH</td><td><code>/kitchen/board</code>, <code>/kitchen/stats</code>, <code>/kitchen/orders</code>, <code>/kitchen/orders/:id/status</code></td><td><code>kitchen:operate</code></td></tr>
+    <tr><td>GET/POST/PATCH</td><td><code>/waiters/map</code>, <code>/waiters/requests</code>, <code>/waiters/requests/:id</code>, <code>…/accept</code>, <code>…/collect</code>, <code>…/settle</code>, <code>/waiters/tables/:id/claim|seat|clear|transfer</code>, <code>/waiters/me/summary</code>, <code>/waiters/live-orders</code></td><td><code>tables:*</code>, <code>requests:*</code>, <code>payments:write</code> for settle</td></tr>
+    <tr><td>POST/GET</td><td><code>/billing</code>, <code>/billing/:id</code>, <code>/billing/:id/cash</code>, <code>/billing/:id/online</code>, <code>/billing/:id/print</code></td><td><code>billing:read|write</code>, <code>payments:write</code></td></tr>
+    <tr><td>GET/POST</td><td><code>/payments</code>, <code>/payments/:id</code>, <code>/payments/:id/refund</code>, <code>/payments/:id/simulate</code></td><td><code>payments:read</code>, <code>payments:refund</code>, <code>payments:write</code></td></tr>
+    <tr><td>GET/POST/PATCH/DELETE</td><td><code>/menu/categories…</code>, <code>/menu/products…</code>, <code>/menu/addons…</code>, <code>POST /uploads</code></td><td><code>menu:read</code> / <code>menu:write</code></td></tr>
+    <tr><td>GET/POST/PATCH/DELETE</td><td><code>/inventory</code>, <code>/inventory/low-stock</code>, <code>/inventory/transactions</code>, <code>/inventory/:id/adjust</code></td><td><code>inventory:read</code> / <code>inventory:write</code></td></tr>
+    <tr><td>GET/POST/PATCH</td><td><code>/bookings</code>, <code>/bookings/availability</code>, <code>/bookings/:id</code>, <code>/bookings/:id/status</code></td><td><code>bookings:read</code> / <code>bookings:write</code></td></tr>
+    <tr><td>GET/POST/PATCH</td><td><code>/staff</code>, <code>/staff/:id</code>, <code>/staff/:id/reset-password</code>, <code>/staff/applications</code>, <code>/staff/applications/:id/approve|reject</code></td><td><code>staff:read</code> / <code>staff:write</code></td></tr>
+    <tr><td>GET/POST/DELETE</td><td><code>/notifications</code>, <code>/notifications/read-all</code>, <code>/notifications/:id/read</code>, <code>/notifications/:id</code></td><td>Any signed-in user; rows are scoped to <code>recipientId</code></td></tr>
+    <tr><td>GET</td><td><code>/reports/dashboard</code>, <code>/sales</code>, <code>/products</code>, <code>/payments</code>, <code>/operations</code></td><td><code>reports:read</code></td></tr>
+    <tr><td>GET</td><td><code>/audit</code></td><td><code>audit:read</code></td></tr>
+    <tr><td>GET/POST</td><td><code>/integrations</code>, <code>/integrations/orders</code>, <code>/integrations/push/:orderId</code>, <code>/integrations/simulate/:provider</code></td><td><code>integrations:write</code> (owner only)</td></tr>
+  </tbody>
+</table>
+<p>Every authenticated read is filtered by <code>req.auth.restaurantId</code>; a token from another tenant cannot
+reach these rows even with the right permission, because the query always carries the restaurant id.</p>
+</section>
+
+<section class="pb">
+<h2><span class="n">08</span>Data management</h2>
+<p>Nineteen collections in <code>src/models</code>, all tenant-scoped by <code>restaurantId</code> except
+<code>Restaurant</code> itself and <code>Counter</code>. Reads in handlers use <code>.lean()</code>; writes go
+through a document so pre-save hooks run.</p>
+<table>
+  <thead><tr><th style="width:17%">Collection</th><th style="width:44%">Fields that matter</th><th>Indexes / notes</th></tr></thead>
+  <tbody>
+    <tr><td><code>Restaurant</code></td><td><code>slug</code>, owner, address, <code>taxPercent</code> (0–28, default 5), <code>serviceChargePercent</code>, hours, <code>payment.upiId/upiName</code>, branding, and a <code>settings</code> block: <code>acceptingOrders</code>, <code>autoAcceptOrders</code>, <code>billFooterNote</code>, booking window and slot sizes, <code>allowWaiterCash</code>, <code>deliveryEnabled</code>, <code>openRoles</code></td><td><code>slug</code> unique, lowercased</td></tr>
+    <tr><td><code>User</code></td><td>role, name, email, phone, <code>passwordHash</code> (<code>select:false</code>), status, <code>refreshTokens[]</code> (<code>select:false</code>), <code>lastLoginAt</code></td><td>email and phone unique+sparse; <code>phoneDigits</code> index; pre-save stamps <code>phoneDigits</code></td></tr>
+    <tr><td><code>Table</code></td><td><code>number</code>, capacity, section, status (8 states), <code>qrToken</code>, <code>activeSessionId</code>, <code>assignedWaiterId</code>, <code>lastCleanedAt</code></td><td><code>qrToken</code> unique; <code>(restaurantId, number)</code> unique; <code>(restaurantId, status)</code></td></tr>
+    <tr><td><code>TableSession</code></td><td>table, <code>publicToken</code>, guestCount, customerName, status, <code>openedVia</code> QR or STAFF, opened/closed/lastActivity</td><td><code>publicToken</code> unique; <code>(restaurantId,status)</code>, <code>(tableId,status)</code></td></tr>
+    <tr><td><code>Order</code></td><td><code>orderNumber</code>, source (9 values), fulfilment, paymentMode, table/session/waiter/cashier refs, customer fields, <code>externalOrderId</code>, embedded <code>items[]</code> (product, name, price, qty, taxPercent, station, isVeg, addons, notes, lineTotal), totals block, status, <code>paymentStatus</code>, <code>billId</code>, the five timestamps, <code>statusHistory[]</code>, <code>trackingToken</code></td><td><code>(restaurantId,orderNumber)</code> unique; <code>trackingToken</code> unique+sparse; <code>(restaurantId,status,createdAt↓)</code>; <code>(restaurantId,tableSessionId)</code>; partial-unique <code>(restaurantId,source,externalOrderId)</code> — the idempotency key that stops a partner webhook double-firing</td></tr>
+    <tr><td><code>Bill</code></td><td><code>billNumber</code>, <code>orderIds[]</code>, session/table, totals, <code>taxBreakup[]</code>, status, paymentStatus, <code>publicToken</code>, issuedBy, printCount</td><td><code>(restaurantId,billNumber)</code> unique; <code>publicToken</code> unique</td></tr>
+    <tr><td><code>Payment</code></td><td>bill, orders, method, provider, amount/tendered/change, provider ids and <code>checkoutUrl</code>, status, refunds[], collectedBy, verifiedAt</td><td><code>createdAt↓</code>; <code>providerOrderId</code> sparse</td></tr>
+    <tr><td><code>Product</code> / <code>Category</code> / <code>Addon</code></td><td>price, <code>taxPercent</code> or inherit, isVeg, station, <code>prepMinutes</code>, <code>addonIds</code>, <code>recipe[{inventoryItemId, qty}]</code>, tags, sortOrder, isActive</td><td>name index; <code>(restaurantId,name)</code> unique on Addon</td></tr>
+    <tr><td><code>InventoryItem</code> / <code>InventoryTransaction</code></td><td>unit, stock, lowStockThreshold, costPerUnit, supplier; transaction type, qty, <code>balanceAfter</code>, refOrder, byUser</td><td><code>(itemId, createdAt↓)</code> — the ledger is append-only</td></tr>
+    <tr><td><code>CustomerRequest</code></td><td>table, session, type (9 values incl. <code>TABLE_CLEAR</code>), note, status, <code>raisedByUserId</code>, handledBy, <code>billId</code>, <code>tendered</code>, collectedBy</td><td><code>(status, createdAt↓)</code>. <code>raisedByUserId</code> is what lets a bill travel to the waiter who asked</td></tr>
+    <tr><td><code>Booking</code></td><td>table, customer, startAt, durationMinutes, guests, status (7 values), source, reminderSentAt, statusHistory</td><td><code>(tableId, startAt)</code> for the availability overlap query</td></tr>
+    <tr><td><code>Notification</code></td><td>recipient, type, title, body, entityType/Id, <code>data</code>, readAt</td><td><code>(recipientId, createdAt↓)</code>, <code>(recipientId, readAt)</code></td></tr>
+    <tr><td><code>StaffApplication</code></td><td>name, phone, phoneDigits, role (floor only), note, status, decidedBy, userId</td><td>partial-unique <code>(restaurantId, phoneDigits, status)</code> while PENDING — one live application per number</td></tr>
+    <tr><td><code>LoginCode</code></td><td>user, phoneDigits, <code>codeHash</code> (<code>select:false</code>), expiresAt, attempts, consumedAt</td><td>TTL index on <code>expiresAt</code> with <code>expireAfterSeconds: 0</code> — Mongo deletes spent codes</td></tr>
+    <tr><td><code>AuditLog</code></td><td>actor, action, entity, metadata, ip</td><td><code>(action, createdAt↓)</code></td></tr>
+    <tr><td><code>Counter</code></td><td><code>key</code>, <code>seq</code></td><td><code>key</code> unique; <code>nextSeq()</code> does an atomic <code>$inc</code> upsert — invoice and order numbers come from here, never from a client</td></tr>
+  </tbody>
+</table>
+<h3>Where the data physically lives</h3>
+<ul>
+  <li><b>Nothing set:</b> <code>mongodb-memory-server</code> runs a real mongod against <code>backend/.data/mongo</code>. It survives restarts locally, which is why a reseed is a deliberate act (<code>npm run seed:fresh</code>, or deleting that folder).</li>
+  <li><b><code>MONGODB_URI</code> set:</b> a real cluster (Atlas M0 in the README). Then <code>npm run seed</code> also works from a Render shell, because both containers see the same database.</li>
+  <li><b>Uploaded photos:</b> <code>backend/uploads</code> on the container’s disk. A redeploy wipes them — object storage is the fix for a real install; committed art under <code>frontend/public</code> survives.</li>
+  <li><b>Every token and QR in the database</b> is regenerated by a reseed. Codes printed before a rebuild point at tokens that no longer exist.</li>
+</ul>
+</section>
+
+<section class="pb">
+<h2><span class="n">09</span>State machines</h2>
+<p>Transitions are declared once, in <code>src/types/constants.ts</code>, and enforced in the service — a client
+cannot jump a row by sending a status it likes.</p>
+<h3>Order</h3>
+<pre>
+PLACED ──&gt; ACCEPTED ──&gt; PREPARING ──&gt; READY ──&gt; SERVED ──&gt; COMPLETED
+   │            │             │            │
+   └────────────┴─────────────┴──────────────&gt; CANCELLED      READY may also go straight to COMPLETED
+</pre>
+<table>
+  <thead><tr><th style="width:22%">Target status</th><th>Roles allowed to move an order into it (<code>TRANSITION_ROLES</code>)</th></tr></thead>
+  <tbody>
+    <tr><td><code>ACCEPTED</code>, <code>PREPARING</code>, <code>READY</code></td><td>KITCHEN, MANAGER, OWNER</td></tr>
+    <tr><td><code>SERVED</code></td><td>adds WAITER and CASHIER</td></tr>
+    <tr><td><code>COMPLETED</code></td><td>CASHIER, WAITER, MANAGER, OWNER</td></tr>
+    <tr><td><code>CANCELLED</code></td><td>CASHIER, MANAGER, OWNER</td></tr>
+  </tbody>
+</table>
+<p>A settlement is a system transition: <code>transitionOrder(…, { system: true })</code> skips the role check and
+may complete an order from any reachable state, which is how paying a bill finishes the tickets behind it.</p>
+<h3>Table, session, booking</h3>
+<ul>
+  <li><b>Table</b> <code>AVAILABLE → RESERVED → OCCUPIED → ORDERING → FOOD_READY → BILL_REQUESTED → PAYMENT_PENDING → CLEANING → AVAILABLE</code>. A clear that still has money on it stops at <code>PAYMENT_PENDING</code>.</li>
+  <li><b>Session</b> <code>OPEN → BILL_REQUESTED → PAYMENT_PENDING → CLOSED</code>. The session id is the key the punch queue uses (§10).</li>
+  <li><b>Booking</b> <code>PENDING → CONFIRMED → ARRIVED → SEATED → COMPLETED</code>, with <code>CANCELLED</code> and <code>NO_SHOW</code> reachable from the first three.</li>
+</ul>
+<h3>Side effects that are part of the machine</h3>
+<ul>
+  <li>First move to <code>PREPARING</code> deducts the recipe once, and writes <code>InventoryTransaction</code> rows.</li>
+  <li><code>READY</code> notifies the waiter who holds the table <em>and</em> the waiter room, so a colleague can run it.</li>
+  <li>Every transition appends to <code>statusHistory[]</code>, which is what <code>/orders/:id/timeline</code> renders.</li>
+  <li>Stock and status changes are audited through <code>audit.service.ts</code>.</li>
+</ul>
+</section>
+
+<section class="pb">
+<h2><span class="n">10</span>The two floor rules</h2>
+<p>Both of these came from real failures on the floor and both are covered by tests in
+<code>backend/tests/cashflow.test.ts</code>. Do not “simplify” them away.</p>
+<h3>Rule 1 — one fire per table</h3>
+<p>A punch that arrives while the table’s current order is still <code>PLACED</code> or <code>ACCEPTED</code> —
+that is, before the kitchen has begun cooking — is <b>merged into that order</b> instead of creating a second
+ticket. The response carries <code>{ merged: true }</code> so the caller can say “added to the running order”
+rather than showing a new ticket number. Once the order is <code>PREPARING</code> or later, the next punch is a
+genuine second round with its own ticket.</p>
+<pre>
+order.service.ts
+  createOrder(input)                  // entry point for every source
+    └─ key = String(input.tableSessionId)
+       tail = (punchQueues.get(key) ?? Promise.resolve()).then(() =&gt; placeOrder(input))
+       punchQueues.set(key, settled)  // the next punch on this table waits for this one
+       ...cleanup when settled
+  placeOrder(input)                   // the merge check happens inside the queue
+</pre>
+<p>The queue exists because two phones can punch the same table within a few milliseconds of each other, and
+both would read “no open order” before either wrote. Serialising per session closes that window without
+refusing anyone. <code>MERGED_SOURCES</code> limits the merge to <code>DINE_IN_QR</code> and
+<code>DINE_IN_WAITER</code>: a guest tap and a waiter punch land on the same ticket, which is exactly the case
+that produced two bills for one dish.</p>
+<div class="note"><b>Known limit.</b> <code>punchQueues</code> is an in-process <code>Map</code>. It is correct on
+one API instance — which is how this project deploys — and would need a database-level guard (a unique partial
+index on “the table’s open unbilled fire”) to be correct across replicas.</div>
+<h3>Rule 2 — the name on a table is a label, not a lock</h3>
+<p>Every waiter works every table. <code>takeTableForWaiter()</code> writes the seating waiter’s name only while
+<code>assignedWaiterId</code> is still null, and the write is conditional so two phones tapping the same free
+table settle on one name instead of overwriting each other. Nothing downstream refuses a colleague: any waiter
+can add items, serve, bill and clear a table they are not named on. The floor shows “with Sneha Patil” as
+information, and <code>NewOrder</code> says in words that anything punched there lands on the same ticket, so
+the party is billed once.</p>
+<p>Related decisions: a cleared table loses its waiter name (<code>tables.routes.ts</code> sets
+<code>assignedWaiterId = null</code>), and the seed leaves free tables unnamed — a demo floor with a name printed
+on every seat makes “take this table” impossible to reach and looks like the ghost shift is working.</p>
+<h3>Where a bill goes when it is asked for</h3>
+<p>A <code>BILL</code> or <code>TABLE_CLEAR</code> request records <code>raisedByUserId</code>. When the counter
+accepts it and issues the bill, the notification goes to the raiser <em>and</em> the name on the table,
+deduplicated; if neither resolves it goes to the waiter room. This is why a waiter who raised the call can open
+the bill and show the guest the QR even when the table belongs to someone else.</p>
+</section>
+
+<section class="pb">
+<h2><span class="n">11</span>Money</h2>
+<h3>Pricing is computed on the server, always</h3>
+<p><code>services/pricing.service.ts</code> recomputes every line from the database row: unit price from
+<code>Product</code>, add-on prices, per-item <code>taxPercent</code> or the restaurant default, quantity,
+line total, then subtotal, tax, service charge, discount, and <code>roundOff</code> to the nearest rupee.
+A client-sent total is ignored. <code>tests/pricing.test.ts</code> exists precisely to keep that true.</p>
+<h3>Bill</h3>
+<ul>
+  <li>Number <code>INV-&lt;YYYYMMDD&gt;-&lt;NNNN&gt;</code> from the atomic <code>Counter</code>; one bill gathers the table’s unbilled orders and stamps <code>billId</code> on each.</li>
+  <li><code>taxBreakup[]</code> splits CGST and SGST for a GST bill the guest can read at <code>/bill/&lt;billToken&gt;</code>.</li>
+  <li><code>publicToken</code> makes the bill readable without a login — that is the QR the waiter shows.</li>
+  <li><code>printCount</code> and <code>lastPrintedAt</code> exist because a printed bill is a legal artefact.</li>
+</ul>
+<h3>UPI and payments</h3>
+<ul>
+  <li><code>upi.service.ts</code> builds <code>upi://pay?pa=&amp;pn=&amp;am=&amp;cu=INR&amp;tn=</code> from the restaurant’s <code>payment.upiId</code> and renders a QR data-URL. No UPI handle configured means no charge is offered, not a broken link.</li>
+  <li><code>integrations/payments.ts</code> has two providers: a mock (which returns a <code>checkoutUrl</code> to <code>/pay/mock</code> and needs an explicit <code>POST /payments/:id/simulate</code> or a verified webhook to mark money in) and Razorpay wiring behind optional keys. A payment is never marked paid by a client assertion.</li>
+  <li>Cash at a table is a two-step dance on purpose: the waiter raises <code>CASH_PAYMENT</code> with the tendered amount, the counter records it (<code>…/collect</code>, <code>…/settle</code>), and only then may the table be freed. Waiters hold <code>billing:write</code> and <code>payments:read</code> but never <code>payments:write</code>.</li>
+  <li>Refunds are a separate permission (<code>payments:refund</code>) and a separate status, including <code>PARTIALLY_REFUNDED</code>.</li>
+</ul>
+</section>
+
+<section class="pb">
+<h2><span class="n">12</span>Auth, sessions and permissions</h2>
+<h3>Tokens</h3>
+<ul>
+  <li><b>Access</b> JWT <code>{ sub, rid, role, name }</code>, TTL <code>ACCESS_TOKEN_TTL</code> (15 minutes). Sent as <code>Authorization: Bearer</code>. The middleware re-reads the user row, so a suspension or role change takes effect on the next request.</li>
+  <li><b>Refresh</b> JWT <code>{ sub, v }</code>, TTL <code>REFRESH_TOKEN_TTL_DAYS</code> (7 days). Only the bcrypt hash of <code>v</code> is stored, in <code>User.refreshTokens[]</code>.</li>
+  <li><b>Per-device sessions.</b> Each sign-in appends a slot; the list is capped at 5 and the oldest is evicted. Refreshing rotates only the caller’s slot, so the counter tablet stays signed in while a phone refreshes. <code>POST /auth/logout</code> with a <code>refreshToken</code> ends that device; without one it ends all of them. Resetting a staff password clears the whole list.</li>
+  <li>The client’s 401 interceptor refreshes in a single flight and replays the original request once (<code>_retry</code>).</li>
+</ul>
+<h3>OTP sign-in</h3>
+<p>Floor roles only — <code>WAITER</code>, <code>KITCHEN</code>, <code>CASHIER</code> — because those are the
+accounts a hired person may not have a password for yet. Six digits, five-minute TTL, five attempts, three
+requests per fifteen minutes, stored as a bcrypt hash in <code>LoginCode</code> with a TTL index that garbage
+collects it. There is no SMS gateway, so outside production <code>deliver()</code> logs the code and returns it;
+that is a demo door, and it is why owner and manager are excluded.</p>
+<h3>The permission grid (<code>ROLE_PERMISSIONS</code>)</h3>
+<table>
+  <thead><tr><th style="width:14%">Role</th><th>Permissions</th></tr></thead>
+  <tbody>
+    <tr><td><code>OWNER</code></td><td>All 26, including <code>settings:write</code>, <code>integrations:write</code> and <code>audit:read</code>.</td></tr>
+    <tr><td><code>MANAGER</code></td><td>Everything operational — menu, orders, kitchen, billing, payments and refunds, bookings, tables, requests, staff, inventory, reports, audit, <code>settings:read</code>. Not <code>settings:write</code>, not <code>integrations:write</code>.</td></tr>
+    <tr><td><code>CASHIER</code></td><td><code>menu:read</code>, <code>orders:read</code>, <code>orders:status</code>, <code>billing:read|write</code>, <code>payments:read|write</code>, <code>tables:read</code>, <code>bookings:read</code>, <code>requests:read|write</code>.</td></tr>
+    <tr><td><code>KITCHEN</code></td><td><code>menu:read</code>, <code>orders:read</code>, <code>kitchen:operate</code>. Deliberately no <code>orders:status</code> — the pass uses the kitchen routes.</td></tr>
+    <tr><td><code>WAITER</code></td><td><code>menu:read</code>, <code>orders:read|write|status</code>, <code>tables:read|write</code>, <code>bookings:read|write</code>, <code>requests:read|write</code>, <code>billing:read|write</code>, <code>payments:read</code>.</td></tr>
+  </tbody>
+</table>
+<p>The client keeps a mirrored copy in <code>frontend/src/store/auth.ts</code> as <code>PERMISSIONS</code> plus
+<code>can(role, permission)</code>, and it is used only to decide what to render. The server checks again on
+every route; hiding a button is not a security boundary.</p>
+<h3>Demo credentials and the master password</h3>
+<p>The seed gives each demo staff row a name, a role and a phone number, and <em>no email and no
+password</em>, so nothing that ships inside this repository opens an account.
+<code>DEMO_STAFF_PASSWORD</code> is the opt-in that hashes a host-chosen password onto those rows;
+<code>DEMO_MASTER_PASSWORD</code> is the separate door that opens any active account of the demo tenant
+without one of its own, and it defaults to blank. Both reach only the tenant whose slug is
+<code>saffron-and-smoke</code>, and in production the master arrives empty whatever the dashboard says.
+A restaurant that onboarded itself through <code>/register</code> is a different tenant and neither
+value gets near it. Suspended accounts are refused before the master is compared, and a failure caused
+by the master is indistinguishable in wording from any wrong password.</p>
+</section>
+
+<section class="pb">
+<h2><span class="n">13</span>Realtime contract</h2>
+<p>Socket.IO on <code>/socket.io</code>, same HTTP server. The handshake takes <code>auth.token</code>; a valid
+JWT joins the rooms its role implies, and an invalid or absent token is not rejected — it becomes a guest
+socket that may only join by public token.</p>
+<table>
+  <thead><tr><th style="width:26%">Room</th><th>Who is in it</th></tr></thead>
+  <tbody>
+    <tr><td><code>restaurant:&lt;rid&gt;</code></td><td>Every staff socket of that tenant</td></tr>
+    <tr><td><code>kitchen:&lt;rid&gt;</code>, <code>cashier:&lt;rid&gt;</code></td><td>By role, for the pass and the counter</td></tr>
+    <tr><td><code>waiter:&lt;uid&gt;</code>, <code>user:&lt;uid&gt;</code></td><td>Named delivery to one person’s devices</td></tr>
+    <tr><td><code>session:&lt;publicToken&gt;</code>, <code>order:&lt;trackingToken&gt;</code></td><td>A guest’s own table or ticket, joined only after the server validates the token</td></tr>
+  </tbody>
+</table>
+<p>Client → server: <code>join:session</code>, <code>join:order</code>, <code>leave:session</code>,
+<code>leave:order</code>, each with an <code>{ ok }</code> acknowledgement. The client keeps its own set of
+joined tokens and replays them on every <code>connect</code>, because a reconnect silently loses room
+membership.</p>
+<table>
+  <thead><tr><th style="width:34%">Event</th><th>Raised when</th></tr></thead>
+  <tbody>
+    <tr><td><code>connection:ready</code></td><td>Handshake accepted — the client’s “live” chip keys off this</td></tr>
+    <tr><td><code>order.created|accepted|preparing|ready|served|completed|cancelled|updated</code></td><td>Any order write; <code>created</code> reaches kitchen, floor and counter rooms</td></tr>
+    <tr><td><code>customer.requested</code>, <code>request.updated</code></td><td>A guest or waiter raises a call, and when it is handled</td></tr>
+    <tr><td><code>bill.requested|created|updated|paid</code></td><td>The bill lifecycle</td></tr>
+    <tr><td><code>payment.succeeded|failed|refunded</code></td><td>A capture, a failed webhook, a refund</td></tr>
+    <tr><td><code>booking.created|updated|reminder</code></td><td>A booking, or the scheduler’s reminder</td></tr>
+    <tr><td><code>table.updated|cleaned|available</code>, <code>session.updated</code></td><td>Floor state</td></tr>
+    <tr><td><code>menu.updated</code>, <code>staff.updated</code></td><td>Anything a cached read would go stale on</td></tr>
+    <tr><td><code>inventory.updated</code>, <code>inventory.low_stock</code></td><td>Stock moves, and the threshold crossing</td></tr>
+    <tr><td><code>notification:new</code></td><td>A persisted <code>Notification</code> row, so the bell and the toast agree</td></tr>
+    <tr><td><code>delivery.order</code></td><td>A partner webhook landed</td></tr>
+  </tbody>
+</table>
+<p>Names are declared once in <code>src/realtime/emit.ts</code> as <code>Events</code>; a handler that emits a
+string literal is a bug waiting to drift.</p>
+</section>
+
+<section class="pb">
+<h2><span class="n">14</span>Frontend anatomy</h2>
+<h3>Two entries, one bundle graph</h3>
+<p><code>vite.config.ts</code> declares two rollup inputs: <code>index.html</code> (“Sizzle”, the guest app,
+<code>manifest.webmanifest</code>) and <code>staff.html</code> (“Sizzle Staff”, <code>manifest-staff.webmanifest</code>).
+Both load the same <code>main.tsx</code>; the manifest and the home-screen name are the only difference, and that
+is what lets a waiter install the floor and a guest install ordering on the same phone as separate apps.</p>
+<h3>Routes and guards (<code>src/App.tsx</code>)</h3>
+<table>
+  <thead><tr><th style="width:30%">Path</th><th style="width:24%">Screen</th><th>Guard</th></tr></thead>
+  <tbody>
+    <tr><td><code>/</code></td><td>Hub</td><td>none — the chooser for a phone on the Wi-Fi</td></tr>
+    <tr><td><code>/login</code>, <code>/register</code>, <code>/staff.html</code></td><td>Login, Register, StaffInstall</td><td>none</td></tr>
+    <tr><td><code>/eat</code>, <code>/eat/:slug</code>, <code>/track/:token</code></td><td>AppLanding, CustomerApp, AppTrack</td><td>none</td></tr>
+    <tr><td><code>/t/:tableToken</code>, <code>/s/:publicToken</code>, <code>/bill/:billToken</code></td><td>GuestMenu, GuestSession, GuestBill</td><td>the token is the credential</td></tr>
+    <tr><td><code>/book/:slug</code>, <code>/apply/:slug</code></td><td>PublicBooking, ApplyJob</td><td>none</td></tr>
+    <tr><td><code>/app/*</code></td><td>StaffLayout: dashboard, orders, order detail, requests, tables, menu, bookings, inventory, staff, reports, delivery, audit, settings</td><td>signed in and <code>orders:read</code>; nav items filtered per permission</td></tr>
+    <tr><td><code>/floor/*</code></td><td>FloorLayout: WaiterFloor, FloorMap, NewOrder, BookingsPage</td><td><code>tables:read</code></td></tr>
+    <tr><td><code>/kds</code></td><td>KdsBoard</td><td>KITCHEN, MANAGER or OWNER</td></tr>
+    <tr><td><code>/pos/*</code></td><td>PosLayout: BillsPage, PosRequests</td><td><code>billing:read</code></td></tr>
+    <tr><td><code>*</code></td><td>NotFound</td><td>—</td></tr>
+  </tbody>
+</table>
+<h3>Data layer</h3>
+<ul>
+  <li><code>lib/api.ts</code> — <code>API_ROOT</code> from <code>VITE_API_URL</code>, empty meaning same host. Attaches the bearer token unless a caller already set one, refreshes once on a 401 for non-auth routes, and normalises errors through <code>errMsg()</code> which reads <code>data.error.message</code>. <code>mediaUrl()</code> turns a stored <code>/uploads/…</code> path into something loadable from another origin.</li>
+  <li><code>lib/query.ts</code> — a Map keyed by a string, <code>peek / write / patch / invalidate / invalidateMany</code>, and <code>useQuery(key, url)</code> with a 20-second freshness window plus a generation counter so an invalidation from a socket refetches the mounted screen. <code>patch</code> is what makes an optimistic update possible without a library.</li>
+  <li><code>lib/socket.ts</code> — the singleton socket, a <code>generation</code> number that is bumped whenever the socket object is replaced (subscribers read it through <code>useSyncExternalStore</code>, so a token refresh cannot leave every component bound to a dead socket), the reconnect room replay, and the failed-handshake counter that mints a fresh access token after two consecutive failures.</li>
+  <li><code>store/auth.ts</code> — persisted under <code>sizzle.auth</code>: user, restaurant, both tokens, <code>ready</code>; <code>login</code>, <code>loginWithCode</code>, <code>register</code>, <code>logout</code>, <code>bootstrap</code>, and the mirrored permission map.</li>
+  <li><code>store/notifications.ts</code> and <code>store/toasts.ts</code> — in-memory; the bell hydrates from the API, toasts expire on a timer.</li>
+  <li><code>hooks/useRealtimeShell.ts</code> — mounted by all four staff layouts; maps each socket event to the query keys it invalidates and to a role-targeted toast. This is the file to edit when a new event needs to reach a screen.</li>
+</ul>
+<h3>UI system</h3>
+<p>Tailwind v4 with no config file: the design tokens live in <code>src/index.css</code> under
+<code>@theme</code> — display font <b>Bricolage Grotesque</b>, body <b>Inter</b>, and the palette scales
+<code>ink</code> (warm charcoal), <code>ember</code> (brand orange), <code>saffron</code>, <code>leaf</code>.
+Shared classes <code>.card</code>, <code>.field</code>, <code>.label</code> and the <code>sizzle-in</code>,
+<code>sizzle-pulse</code>, <code>sizzle-slide</code> keyframes are defined there. Primitives are in
+<code>components/ui.tsx</code> (Button, LinkButton, Card, Modal, Drawer, Field, Tabs, StatTile, VegDot,
+DishThumb, Toggle, SegmentedControl, Spinner), with <code>DataTable</code>, <code>QrScanner</code>,
+<code>UpiQr</code>, <code>Toaster</code>, <code>NotificationBell</code>, <code>ImagePicker</code>,
+<code>OperationsAppModal</code> and <code>charts.tsx</code> above them. Status-to-colour copy is centralised in
+<code>lib/statusMaps.ts</code> so “READY” reads the same on the pass and the floor.</p>
+<p>Types in <code>lib/types.ts</code> are a hand-maintained mirror of the backend shapes — not generated. When a
+field changes on a model, both files must move together; nothing will tell you.</p>
+</section>
+
+<section class="pb">
+<h2><span class="n">15</span>PWA, QR codes and installables</h2>
+<h3>Install</h3>
+<ul>
+  <li>Two manifests: guest (<code>start_url /eat</code>) and staff (<code>start_url /staff.html</code>, categories business/productivity/food, shortcuts Office, Floor, Kitchen, Counter). Theme and background <code>#1c1917</code>, <code>display: standalone</code> with the newer <code>override</code> too.</li>
+  <li><code>public/sw.js</code>, cache <code>sizzle-v3</code>: precaches the shell (both manifests, every icon, <code>/</code>, <code>/eat</code>, <code>/staff.html</code>); GET only; <b>skips</b> <code>/api</code>, <code>/uploads</code> and <code>/socket.io</code> so data is never served from a stale cache; navigations network-first with a fallback to the cached shell; static assets cache-first.</li>
+  <li><code>hooks/useInstallPrompt.ts</code> handles the deferred prompt; <code>lib/installShortcuts.ts</code> writes a <code>.url</code> and a <code>.bat</code> (<code>msedge|chrome --app=&lt;url&gt;</code>) for a desktop that will not accept a PWA install.</li>
+</ul>
+<h3>Which code points where, and how the host is chosen</h3>
+<table>
+  <thead><tr><th style="width:22%">Code</th><th style="width:26%">Encodes</th><th>Host rule</th></tr></thead>
+  <tbody>
+    <tr><td>Table sticker</td><td><code>/t/&lt;qrToken&gt;</code></td><td><code>PUBLIC_BASE_URL</code> (<code>tables.routes.ts</code>) — set it to the address customers reach</td></tr>
+    <tr><td>Counter / bag / box</td><td><code>/eat/&lt;slug&gt;</code></td><td><code>clientBase(req.headers.origin)</code> in <code>restaurant.routes.ts</code>: the request’s own public, allowlisted origin, else <code>PUBLIC_BASE_URL</code></td></tr>
+    <tr><td>Staff board</td><td><code>/staff.html?r=&lt;slug&gt;</code></td><td>same rule, so a laptop print stays on the laptop address</td></tr>
+    <tr><td>Bill pay code</td><td><code>/bill/&lt;publicToken&gt;</code></td><td><code>PUBLIC_BASE_URL</code></td></tr>
+    <tr><td>UPI charge</td><td><code>upi://pay?…</code></td><td>no host at all — a payment deep link</td></tr>
+    <tr><td>Anything the page itself links to</td><td>floor, session, install shortcuts</td><td><code>window.location.origin</code>, which is why the same build works on both deployed addresses</td></tr>
+  </tbody>
+</table>
+<p>Every code on screen can also be saved as a PNG (<code>lib/downloadQr.ts</code>), named for what it points at.
+Because the API returns the code as a data-URL, the saved file and the on-screen image cannot disagree — a print
+dialog that re-encodes could.</p>
+<div class="note"><b>The rule in one sentence.</b> A printed code must encode the address a customer’s phone can
+open, never the service that computed it: the Render free tier sleeps, and a sticker that takes thirty seconds to
+wake reads as a broken QR.</div>
+</section>
+
+<section class="pb">
+<h2><span class="n">16</span>Configuration reference</h2>
+<p>Parsed once, in <code>backend/src/config/env.ts</code>, with Zod. Anything invalid stops the process.</p>
+<table>
+  <thead><tr><th style="width:27%">Variable</th><th style="width:30%">Default</th><th>What it changes</th></tr></thead>
+  <tbody>
+    <tr><td><code>NODE_ENV</code></td><td><code>development</code></td><td>Production refuses a missing <code>MONGODB_URI</code> or a placeholder secret, and switches off the demo master password and the OTP echo</td></tr>
+    <tr><td><code>PORT</code></td><td><code>4000</code></td><td>HTTP bind</td></tr>
+    <tr><td><code>MONGODB_URI</code></td><td>unset → embedded</td><td>Real cluster vs the in-container database</td></tr>
+    <tr><td><code>ACCESS_TOKEN_SECRET</code> / <code>REFRESH_TOKEN_SECRET</code></td><td>dev placeholders</td><td>Signing; change before deploying</td></tr>
+    <tr><td><code>ACCESS_TOKEN_TTL</code> / <code>REFRESH_TOKEN_TTL_DAYS</code></td><td><code>15m</code> / <code>7</code></td><td>Session lifetimes</td></tr>
+    <tr><td><code>CORS_ORIGIN</code></td><td>built-in list</td><td>Comma-separated origins checked by HTTP CORS <em>and</em> the socket handshake. The built-in list (<code>RENDER_EXTERNAL_URL</code>, both client hosts, localhost) is always added, so a stale dashboard value cannot lock a known client out</td></tr>
+    <tr><td><code>PUBLIC_BASE_URL</code></td><td>hosted → the client domain; local → <code>http://localhost:5173</code></td><td>Host baked into table QR, guest bills, booking links and the mock checkout. A private address here is overridden with a boot warning, because no customer’s phone can open a laptop IP</td></tr>
+    <tr><td><code>DEMO_MASTER_PASSWORD</code> / <code>DEMO_STAFF_PASSWORD</code></td><td>blank / blank</td><td>The two demo doors. The master opens any active account of the demo tenant without that account holding a password; the staff password is what the seed hashes onto the accounts it creates. Left blank, the seeded tenant has no logins at all — which is how a hosted instance should run</td></tr>
+    <tr><td><code>AUTO_SEED</code></td><td>on</td><td>Set <code>false</code> to boot an untouched database clean</td></tr>
+    <tr><td><code>UPLOAD_DIR</code> / <code>STATIC_DIR</code></td><td><code>uploads</code> / auto</td><td>Where photos go; where the built client is found (<code>../frontend/dist</code> by default)</td></tr>
+    <tr><td><code>PAYMENT_WEBHOOK_SECRET</code>, <code>SWIGGY_/ZOMATO_/WEBSITE_WEBHOOK_SECRET</code></td><td>dev values</td><td>HMAC keys every webhook body is compared against before it is trusted</td></tr>
+    <tr><td><code>SWIGGY_API_BASE/KEY</code>, <code>ZOMATO_API_BASE/KEY</code>, <code>RAZORPAY_KEY_ID/SECRET/WEBHOOK_SECRET</code></td><td>unset</td><td>Live partner and gateway calls; unset means the adapter simulates</td></tr>
+    <tr><td><code>RENDER_EXTERNAL_URL</code> / <code>RENDER_EXTERNAL_HOSTNAME</code></td><td>set by Render</td><td>How the API knows it is deployed — used instead of <code>NODE_ENV</code>, because Render leaves the latter at its default</td></tr>
+  </tbody>
+</table>
+<p>Frontend variables: <code>VITE_API_URL</code> only, read in <code>lib/api.ts</code> and again in
+<code>lib/socket.ts</code> (that duplication is deliberate — the socket module must be importable <em>by</em> the
+HTTP layer). Never put a secret in a <code>VITE_*</code> variable: Vite inlines it into the bundle the browser
+downloads.</p>
+</section>
+
+<section class="pb">
+<h2><span class="n">17</span>Build, test and deploy</h2>
+<h3>Running it locally</h3>
+<pre>
+cd backend  && npm install && npm run dev     # API on :4000, embedded Mongo under .data/mongo
+cd frontend && npm install && npm run dev     # Vite on :5173, proxying /api /uploads /socket.io
+npm run seed:fresh                            # rebuild the demo tenant (new tokens, new QR codes)
+</pre>
+<p>To demo on a phone on the same Wi-Fi: Vite binds every interface and prints the LAN address; put that address
+in <code>backend/.env</code> as <code>PUBLIC_BASE_URL</code> and add it to <code>CORS_ORIGIN</code>, then restart
+the API. Omitting the LAN origin is the usual reason a phone loads the page but never gets live updates. If the
+phone spins and never connects, that is router client isolation, not this repository.</p>
+<h3>Gates that must be green before a push</h3>
+<pre>
+backend :  npm run typecheck      # tsc --noEmit  — the build does NOT typecheck, this does
+backend :  npm run test           # vitest run    — 9 files, embedded Mongo on .data/mongo-test
+backend :  npm run build          # tsup bundle + scripts/build-client.mjs (builds ../frontend)
+frontend:  npm run typecheck
+then:      live smoke on the deployed URLs, and a secret read of the diff about to go out
+</pre>
+<h3>What each suite protects</h3>
+<table>
+  <thead><tr><th style="width:22%">File</th><th>Behaviour groups</th></tr></thead>
+  <tbody>
+    <tr><td><code>cashflow.test.ts</code></td><td>One bill per table, cash at the table, <b>one fire per table</b>, <b>every waiter works every table</b> — the two floor rules above</td></tr>
+    <tr><td><code>orders.test.ts</code></td><td>Totals computed from the menu and never from the client; the order machine walked to completion with stock deducted once</td></tr>
+    <tr><td><code>pricing.test.ts</code></td><td>Money helpers, line totals, discounts, <code>computeTotals</code></td></tr>
+    <tr><td><code>auth.test.ts</code></td><td>Sign-in and the master-password rules; one account on two devices, including the oldest-device eviction</td></tr>
+    <tr><td><code>customerApp.test.ts</code></td><td>The guest ordering app and seating from it</td></tr>
+    <tr><td><code>bookings.test.ts</code></td><td>Availability, the smallest table that fits a party, the booking lifecycle</td></tr>
+    <tr><td><code>upi.test.ts</code></td><td>The scan-to-pay charge carries the exact amount and the bill reference</td></tr>
+    <tr><td><code>hiring.test.ts</code></td><td>Applying from a sticker, approving, OTP codes, which roles are open</td></tr>
+    <tr><td><code>webhooks.test.ts</code></td><td>Payment gateway and delivery partner webhook handling</td></tr>
+  </tbody>
+</table>
+<h3>Deploy</h3>
+<ol>
+  <li><b>Render</b> — <code>render.yaml</code> is a Blueprint (<em>New → Blueprint</em> at this repository). Root directory <code>backend</code>, build <code>npm install &amp;&amp; npm run build</code>, start <code>node dist/server.js</code>, health check <code>/api/health</code>. Only <code>MONGODB_URI</code> is left to fill in.</li>
+  <li><b>Vercel</b> — project root <code>frontend</code>, so <code>frontend/vercel.json</code> is read. The four rewrites in §04 must stay ahead of the SPA fallback; a catch-all first answers an API call with <code>index.html</code>, and an unknown top-level key in that file fails the build outright.</li>
+  <li><b>Push to <code>main</code></b> deploys both. Expect Render to take a few minutes and to wipe and reseed the embedded database on the way up.</li>
+</ol>
+<div class="note"><b>Two deployment facts that surprise people.</b> A redeploy resets the demo tenant, so every
+QR token, session token and JWT changes — codes printed from the previous instance stop resolving. And the
+service’s <code>NODE_ENV</code> is not <code>production</code> on Render even though <code>render.yaml</code>
+sets it, so anything that must apply to the deployment has to key on <code>RENDER_EXTERNAL_URL</code> being
+present, not on <code>env.isProd</code>.</div>
+</section>
+
+<section class="pb">
+<h2><span class="n">18</span>Runbook — symptom to file</h2>
+<table>
+  <thead><tr><th style="width:34%">Symptom</th><th style="width:30%">Look here</th><th>Why</th></tr></thead>
+  <tbody>
+    <tr><td>Page loads, no live updates</td><td><code>config/env.ts</code> origins, <code>hooks/useRealtimeShell.ts</code></td><td>The origin is not on the allowlist, or the event has no invalidation mapping</td></tr>
+    <tr><td>Every API call returns HTML</td><td><code>frontend/vercel.json</code> order</td><td>The SPA catch-all is ahead of the <code>/api</code> rewrite</td></tr>
+    <tr><td>Vercel build fails on a config file</td><td><code>frontend/vercel.json</code></td><td>Unknown top-level keys are rejected; comments belong in the README</td></tr>
+    <tr><td>A printed QR opens an error page</td><td><code>PUBLIC_BASE_URL</code>, <code>clientBase()</code>, whether a reseed happened since</td><td>Wrong host baked in, or the token no longer exists</td></tr>
+    <tr><td>Sign-in fails with no clear reason</td><td><code>modules/auth/auth.service.ts</code>, <code>middleware/auth.ts</code></td><td>Suspended status, an evicted refresh slot, or a tenant the master password does not reach</td></tr>
+    <tr><td>Waiter cannot change a status</td><td><code>types/constants.ts</code> <code>ROLE_PERMISSIONS</code>, <code>TRANSITION_ROLES</code></td><td>KITCHEN has no <code>orders:status</code>; only listed roles may enter a status</td></tr>
+    <tr><td>Table refuses to clear</td><td><code>services/billing.service.ts</code>, <code>modules/waiters</code></td><td>Money is still open — a payment must be recorded at the counter first</td></tr>
+    <tr><td>Duplicate ticket for one dish</td><td><code>services/order.service.ts</code> <code>punchQueues</code>, <code>MERGED_SOURCES</code></td><td>Rule 1; check whether the source is outside the merge set</td></tr>
+    <tr><td>Menu photo gone after a deploy</td><td><code>UPLOAD_DIR</code> on container disk</td><td>Expected; only committed files under <code>frontend/public</code> survive</td></tr>
+    <tr><td>First request after a quiet period takes ~30s</td><td>Render free tier</td><td><code>/api/health</code> warms it; a real install needs a paid instance</td></tr>
+    <tr><td>Two dev servers fight over the database</td><td><code>config/db.ts</code>, <code>.data/mongo</code></td><td>Only one mongod may hold the lock directory</td></tr>
+  </tbody>
+</table>
+<h3>Diagnosing the live pair without a browser</h3>
+<pre>
+curl -s https://smart.restaurant.aniruddhasali.in/api/health      # JSON = proxy works; HTML = rewrite missing
+curl -s -o /dev/null -w "%{http_code} %{content_type}\n" \
+     https://smart.restaurant.aniruddhasali.in/socket.io/?EIO=4&amp;transport=polling
+curl -s -D - -o /dev/null -X OPTIONS https://ai-1-hsus.onrender.com/api/auth/login \
+     -H "Origin: https://smart.restaurant.aniruddhasali.in" \
+     -H "Access-Control-Request-Method: POST" | grep -i access-control-allow-origin
+</pre>
+</section>
+
+<section class="pb">
+<h2><span class="n">19</span>Deliberate mocks, limits and debts</h2>
+<h3>Mocked on purpose</h3>
+<ul>
+  <li><b>Payments.</b> A card or UPI settlement needs the explicit <code>POST /payments/:id/simulate</code> the counter makes, or a signed webhook. Money is only ever marked in by an event, never by a client saying so.</li>
+  <li><b>Delivery partners.</b> Swiggy, Zomato and the website channel run through adapters that simulate unless API keys are present; <code>POST /integrations/simulate/:provider</code> exists so the floor can be rehearsed.</li>
+  <li><b>SMS.</b> No gateway, so the OTP code is logged and returned outside production — which is why floor roles only may use it.</li>
+</ul>
+<h3>Structural limits</h3>
+<ul>
+  <li><b>Single process.</b> The punch queue and the scheduler’s interval are in-memory. Correct on one instance; a second replica needs database-level guards and a distributed lock.</li>
+  <li><b>Embedded database on the free tier.</b> Every deploy wipes and reseeds. Real use means <code>MONGODB_URI</code> plus object storage for uploads.</li>
+  <li><b>Types are mirrored by hand</b> between <code>backend/src/models</code> and <code>frontend/src/lib/types.ts</code>, and permissions are duplicated between <code>constants.ts</code> and <code>store/auth.ts</code>. Nothing enforces they agree.</li>
+  <li><b>Rate limits are in-memory</b>, so they reset with the process and do not span replicas.</li>
+  <li><b>WebSocket upgrade is lost behind the Vercel rewrite</b>; realtime on that domain rides long polling.</li>
+</ul>
+<h3>Debts worth scheduling</h3>
+<ul>
+  <li><code>onRealtimeAuthFailure()</code> is exported from <code>lib/socket.ts</code> but no module calls it, so
+  the socket’s self-healing token refresh never fires — the HTTP layer’s own 401 path is what keeps sessions
+  alive today. Wire it or delete it.</li>
+  <li>Realtime events are untyped on the client: the names in <code>emit.ts</code> and the strings in
+  <code>useRealtimeShell.ts</code> agree only by discipline.</li>
+  <li>Menu photos have no checksum or dedupe; re-uploading the same dish art accumulates files.</li>
+</ul>
+</section>
+
+<section class="pb">
+<h2><span class="n">20</span>Glossary</h2>
+<table>
+  <thead><tr><th style="width:22%">Term</th><th>Meaning in this codebase</th></tr></thead>
+  <tbody>
+    <tr><td>Fire / ticket</td><td>One <code>Order</code> for one table session — the kitchen’s unit of work</td></tr>
+    <tr><td>Punch</td><td>Add dishes to a table, from the guest’s phone or a waiter’s</td></tr>
+    <tr><td>Pass</td><td>The kitchen board at <code>/kds</code>, four columns by status</td></tr>
+    <tr><td>Floor</td><td>The waiter view at <code>/floor</code>: tables, seats, calls</td></tr>
+    <tr><td>Counter</td><td>The POS at <code>/pos</code>: bills, payments, the request queue</td></tr>
+    <tr><td>Session</td><td><code>TableSession</code> — one sitting at one table, with a public token a guest can hold</td></tr>
+    <tr><td>Claim</td><td>Put your name on a free table. A label; never a lock</td></tr>
+    <tr><td>Clear</td><td>Free a table for the next party, allowed only once money is settled</td></tr>
+    <tr><td>Tenant</td><td>One <code>Restaurant</code> row and everything scoped to its id</td></tr>
+    <tr><td>Open roles</td><td><code>FLOOR_ROLES</code> — the jobs a stranger may apply for from a sticker</td></tr>
+    <tr><td>Invalidation</td><td>Bumping a query key so mounted screens refetch</td></tr>
+  </tbody>
+</table>
+<p class="small">Written against commit <code>bbfa7bb</code> on <code>main</code>. Where this document and the code
+disagree, the code is right and this page is a bug report.</p>
+</section>
+
+</body>
+</html>

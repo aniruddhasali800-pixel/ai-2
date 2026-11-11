@@ -1,0 +1,36 @@
+# Render Blueprint — one web service hosts the API and the built React app.
+# `npm run build` in backend/ bundles the server and builds ../frontend/dist, which
+# the API then serves, so the default Node build and start commands are enough.
+# Render publishes the service's own URL through RENDER_EXTERNAL_URL, and the config
+# reads it for the CORS allowlist. The host baked into QR codes and guest links is the
+# demo client's domain, since that is the address a customer's phone opens.
+#
+# The API no longer needs a database URL: every record is a file in the archive folder under the
+# service's own filesystem (`ARCHIVE_DIR`, default `.data/archive`). On this free plan that folder is
+# recreated empty at each deploy, so a pushed build starts with no restaurants until it seeds one —
+# a plan with a persistent disk is what makes the hosted archive survive a deploy.
+services:
+  - type: web
+    name: sizzle
+    runtime: node
+    plan: free
+    region: oregon
+    rootDir: backend
+    buildCommand: npm install && npm run build
+    startCommand: node dist/server.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: '22'
+      # The two secrets a production process refuses to boot without. `sync: false` means Render asks
+      # for their values when this Blueprint first creates the service and never overwrites them after,
+      # which is how a credential belongs in a committed file: named here, valued only on the host.
+      - key: ACCESS_TOKEN_SECRET
+        sync: false
+      - key: REFRESH_TOKEN_SECRET
+        sync: false
+      # No longer read by the API, which keeps its records in the archive folder.
+      - key: MONGODB_URI
+        sync: false

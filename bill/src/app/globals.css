@@ -1,0 +1,99 @@
+@import 'tailwindcss';
+
+:root {
+  --ink: #16130f;
+  --muted: #6b6459;
+  --line: #e4ddd2;
+  --card: #fffdf9;
+  --accent: #b5401f;
+  --good: #1d6b45;
+  --warn: #8a5a10;
+}
+
+html {
+  color-scheme: light;
+}
+
+body {
+  background: #f7f3ec;
+  color: var(--ink);
+  font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 1.25rem;
+}
+
+.label {
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.input {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.6rem 0.75rem;
+  background: #fff;
+  font-size: 0.95rem;
+}
+
+.btn {
+  border-radius: 10px;
+  padding: 0.65rem 1rem;
+  font-weight: 600;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+}
+
+.btn-ghost {
+  background: #fff;
+  border-color: var(--line);
+  color: var(--ink);
+}
+
+.btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border-radius: 999px;
+  padding: 0.2rem 0.7rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  border: 1px solid var(--line);
+  background: #fff;
+}
+
+.pill-pending { background: #fdf6e3; color: var(--warn); border-color: #f0e0b8; }
+.pill-claim { background: #eef3fb; color: #1e4b7a; border-color: #cddcf0; }
+.pill-paid { background: #e9f5ee; color: var(--good); border-color: #c7e5d4; }
+.pill-closed { background: #f2efea; color: var(--muted); }
+
+.notice {
+  border-left: 3px solid var(--accent);
+  background: #fff;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  font-size: 0.9rem;
+}
+
+@media print {
+  body { background: #fff; }
+  .no-print { display: none !important; }
+}

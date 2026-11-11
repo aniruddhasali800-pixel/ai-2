@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "https://ai-1-hsus.onrender.com/api/$1" },
+    { "source": "/uploads/(.*)", "destination": "https://ai-1-hsus.onrender.com/uploads/$1" },
+    { "source": "/socket.io/(.*)", "destination": "https://ai-1-hsus.onrender.com/socket.io/$1" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}

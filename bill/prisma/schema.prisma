@@ -1,0 +1,132 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// A payable bill. Created by Sizzle when a bill is finalised (`source = "SIZZLE"`),
+// or by a walk-up order placed on this service directly.
+model Order {
+  id          String  @id @default(cuid())
+  orderId     String  @unique
+  token       String  @unique
+  customerId  String
+  customer    Customer @relation(fields: [customerId], references: [id])
+  status      String  @default("AWAITING_PAYMENT")
+  source      String  @default("SELF")
+  // Linkage back to the Sizzle tenant that owns the food order.
+  externalBillId       String? @unique
+  externalBillNumber   String?
+  externalRestaurantId String?
+  externalTableNumber  String?
+  paymentMethod   String  @default("UPI_DIRECT")
+  paymentStatus   String  @default("PENDING")
+  paymentReference  String?
+  upiIdUsed         String?
+  currency          String  @default("INR")
+  subtotalInPaise   Int
+  totalInPaise      Int
+  note              String?
+  paidAt            DateTime?
+  verifiedById      String?
+  verifiedBy        User?     @relation("OrderVerifier", fields: [verifiedById], references: [id])
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  items         OrderItem[]
+  paymentEvents PaymentEvent[]
+
+  @@index([paymentStatus, createdAt])
+  @@index([status, createdAt])
+  @@index([externalRestaurantId, createdAt])
+}
+
+model OrderItem {
+  id              String  @id @default(cuid())
+  orderId         String
+  order           Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItemId      String?
+  menuItem        MenuItem? @relation(fields: [menuItemId], references: [id])
+  name            String
+  unitPriceInPaise Int
+  quantity        Int
+  lineTotalInPaise Int
+  createdAt       DateTime @default(now())
+
+  @@index([orderId])
+}
+
+model Customer {
+  id        String   @id @default(cuid())
+  label     String
+  phone     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  orders    Order[]
+}
+
+model MenuItem {
+  id            String   @id @default(cuid())
+  name          String
+  description   String?
+  category      String   @default("Main")
+  priceInPaise  Int
+  available     Boolean  @default(true)
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  orderItems    OrderItem[]
+
+  @@index([category, available])
+}
+
+// OWNER changes the payee, CASHIER verifies claims, MANAGER reads only.
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  role         String   @default("CASHIER")
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  verifiedOrders Order[]     @relation("OrderVerifier")
+  settingsEdits  PaymentSetting[] @relation("SettingEditor")
+
+  @@index([role])
+}
+
+model PaymentSetting {
+  id             String   @id @default("default")
+  businessName   String
+  upiPayeeName   String?
+  // The payee VPA is AES-256-GCM encrypted at rest; only the mask is ever readable by staff.
+  upiIdEncrypted String
+  upiIdMasked    String
+  enabled        Boolean  @default(true)
+  currency       String   @default("INR")
+  notesPrefix    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  updatedById    String?
+  updatedBy      User?    @relation("SettingEditor", fields: [updatedById], references: [id])
+}
+
+// Append-only audit trail: every status move records who did it.
+model PaymentEvent {
+  id         String   @id @default(cuid())
+  orderId    String
+  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  type       String
+  actorType  String
+  actorId    String?
+  fromStatus String?
+  toStatus   String?
+  reference  String?
+  detail     String?
+  createdAt  DateTime @default(now())
+
+  @@index([orderId, createdAt])
+}

@@ -1,0 +1,72 @@
+{
+  "id": "/staff.html",
+  "name": "Sizzle Staff — Restaurant OS",
+  "short_name": "Sizzle Staff",
+  "description": "The whole restaurant in one icon: the back office, the floor, the kitchen display and the counter. Sign in with your own staff account.",
+  "lang": "en-IN",
+  "dir": "ltr",
+  "start_url": "/staff.html",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui", "browser"],
+  "orientation": "any",
+  "background_color": "#1c1917",
+  "theme_color": "#1c1917",
+  "categories": ["business", "productivity", "food"],
+  "icons": [
+    {
+      "src": "/icons/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Back office",
+      "short_name": "Office",
+      "description": "Live orders, sales and the floor",
+      "url": "/app",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Floor",
+      "short_name": "Floor",
+      "description": "Seat guests and raise orders from the table",
+      "url": "/floor",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Kitchen",
+      "short_name": "Kitchen",
+      "description": "The pass, ticket by ticket",
+      "url": "/kds",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Counter",
+      "short_name": "Counter",
+      "description": "Bills, UPI, cards and cash",
+      "url": "/pos",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    }
+  ]
+}

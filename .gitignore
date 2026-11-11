@@ -1,0 +1,19 @@
+node_modules/
+dist/
+.env
+.data/
+# Only the write-target for uploaded images — the uploads module under src/ is code.
+/backend/uploads/
+*.log
+.DS_Store
+
+# TypeScript build artefacts
+*.tsbuildinfo
+
+# Local probe scratch — tok.txt holds a live owner JWT.
+/tok.txt
+/login.json
+/qr.json
+/tables.json
+/spec.txt
+/saffron-&-smoke-sales.csv
