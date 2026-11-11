@@ -76,6 +76,10 @@ export function PublicBooking() {
       await Promise.all(
         slotTimes.map(async (t) => {
           const startAt = new Date(`${date}T${t}:00`).toISOString();
+          if (new Date(startAt).getTime() <= Date.now()) {
+            results[t] = { available: false, reason: 'Passed', tables: [] };
+            return;
+          }
           try {
             const { data } = await http.get<Slot>(`/public/bookings/availability`, {
               params: { restaurantId: probeKey, startAt, guests },
