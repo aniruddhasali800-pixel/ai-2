@@ -33,7 +33,7 @@ export function PublicBooking() {
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [guests, setGuests] = useState(2);
   const [slots, setSlots] = useState<Slots>({});
-  const [picked, setPicked] = useState<{ startAt: string; tableId?: string } | null>(null);
+  const [picked, setPicked] = useState<{ startAt: string; time: string; tableId?: string } | null>(null);
   const [form, setForm] = useState({ customerName: '', customerPhone: '', customerEmail: '', notes: '' });
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState<string | null>(null);
@@ -195,14 +195,14 @@ export function PublicBooking() {
               <div className="mt-1.5 grid grid-cols-3 gap-1.5 sm:grid-cols-4">
                 {slotTimes.map((t) => {
                   const s = slots[t];
-                  const on = picked?.startAt.endsWith(t) ?? false;
+                  const on = picked?.time === t;
                   return (
                     <button
                       key={t}
                       disabled={!s || !s.available}
                       onClick={() => {
                         const startAt = new Date(`${date}T${t}:00`).toISOString();
-                        setPicked({ startAt, tableId: s.tables[0]?._id });
+                        setPicked({ startAt, time: t, tableId: s.tables[0]?._id });
                       }}
                       className={`rounded-xl border px-2 py-2 text-[13px] font-semibold transition-colors ${
                         on
