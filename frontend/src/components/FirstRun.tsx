@@ -25,6 +25,7 @@ export function FirstRun() {
   const navigate = useNavigate();
   const [asked, setAsked] = useState(() => localStorage.getItem(ASKED_KEY) === 'yes');
   const [folder, setFolder] = useState<string | null>(null);
+  const [vacant, setVacant] = useState<boolean | null>(null);
 
   useEffect(() => {
     if (pathname.startsWith('/register')) done();
@@ -35,6 +36,12 @@ export function FirstRun() {
       .get<{ dataFolder?: string }>('/health')
       .then(({ data }) => setFolder(data.dataFolder ?? null))
       .catch(() => undefined);
+    // A deployed host already holds a restaurant; offering to "start" one there contradicts the
+    // hub behind this modal. Only an install whose server lists no tenant is actually new.
+    http
+      .get<unknown[]>('/public/apps/restaurants')
+      .then(({ data }) => setVacant(Array.isArray(data) && data.length === 0))
+      .catch(() => setVacant(false));
   }, []);
 
   function done() {
@@ -47,7 +54,7 @@ export function FirstRun() {
     navigate(path);
   }
 
-  if (asked || !ready || user || !isStaffEntry(pathname)) return null;
+  if (asked || !ready || user || !isStaffEntry(pathname) || vacant !== true) return null;
 
   return (
     <Modal
