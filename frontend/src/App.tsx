@@ -51,8 +51,8 @@ const MockCheckout = lazy(() => import('./pages/app/MockCheckout').then((m) => (
 function RootRoute() {
   const { user, ready } = useAuth();
   if (!ready) return null;
-  if (!user) return <Navigate to="/login" replace />;
-  return <Navigate to={homeFor(user.role)} replace />;
+  if (user) return <Navigate to={homeFor(user.role)} replace />;
+  return <Hub />;
 }
 
 export function App() {

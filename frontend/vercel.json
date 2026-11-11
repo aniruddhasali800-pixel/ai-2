@@ -1,4 +1,8 @@
 {
+  "framework": null,
+  "installCommand": "npm ci",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
   "rewrites": [
     { "source": "/api/(.*)", "destination": "https://ai-1-hsus.onrender.com/api/$1" },
     { "source": "/uploads/(.*)", "destination": "https://ai-1-hsus.onrender.com/uploads/$1" },
