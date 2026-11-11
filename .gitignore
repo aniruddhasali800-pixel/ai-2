@@ -2,6 +2,7 @@ node_modules/
 dist/
 .env
 .data/
+.vercel/
 # Only the write-target for uploaded images — the uploads module under src/ is code.
 /backend/uploads/
 *.log

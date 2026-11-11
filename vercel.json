@@ -1,8 +1,8 @@
 {
   "framework": null,
-  "installCommand": "cd frontend && npm ci",
-  "buildCommand": "cd frontend && npm run build",
-  "outputDirectory": "frontend/dist",
+  "installCommand": "sh -c 'cd frontend 2>/dev/null || cd ../frontend; npm ci'",
+  "buildCommand": "sh -c 'R=$PWD; cd frontend 2>/dev/null || cd ../frontend; npm run build && rm -rf \"$R/dist\" && cp -r dist \"$R/dist\"'",
+  "outputDirectory": "dist",
   "rewrites": [
     { "source": "/api/(.*)", "destination": "https://ai-1-hsus.onrender.com/api/$1" },
     { "source": "/uploads/(.*)", "destination": "https://ai-1-hsus.onrender.com/uploads/$1" },
